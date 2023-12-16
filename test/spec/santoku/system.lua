@@ -8,7 +8,7 @@ test("system", function ()
 
     test("should provide a chunked iterator for a forked processes stout and stderr", function ()
 
-      local ok, iter = sys.pread("sh", "-c", "echo a; sleep 1; echo b >&2; exit 1")
+      local ok, iter = sys.pread({ bufsize = 500 }, "sh", "-c", "echo a; sleep 1; echo b >&2; exit 1")
 
       assert.equals(true, ok, iter)
 
@@ -54,4 +54,5 @@ test("system", function ()
     end)
 
   end)
+
 end)

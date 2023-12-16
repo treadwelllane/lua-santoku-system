@@ -2,16 +2,15 @@ local err = require("santoku.err")
 local tup = require("santoku.tuple")
 local gen = require("santoku.gen")
 
-local unistd = require("posix.unistd")
-local wait = require("posix.sys.wait")
-local poll = require("posix.poll")
+local posix = require("santoku.system.posix")
+local poll = require("santoku.system.posix.poll")
 
 local function run_child (check, file, args, sr, sw, er, ew)
-  check.exists(unistd.close(sr))
-  check.exists(unistd.close(er))
-  check.exists(unistd.dup2(sw, unistd.STDOUT_FILENO))
-  check.exists(unistd.dup2(ew, unistd.STDERR_FILENO))
-  local _, err, cd = unistd.execp(file, args)
+  check(posix.close(sr))
+  check(posix.close(er))
+  check(posix.dup2(sw, 1))
+  check(posix.dup2(ew, 2))
+  local _, err, cd = posix.execp(file, args)
   io.stderr:write(table.concat({ err, ": ", cd, "\n" }))
   io.stderr:flush()
   os.exit(1)
@@ -20,12 +19,12 @@ end
 local function run_parent_loop (check, yield, opts, pid, fds, sr, er)
   while true do
 
-    check.exists(poll.poll(fds))
+    check(poll(fds))
 
     for fd, cfg in pairs(fds) do
 
       if cfg.revents.IN then
-        local res = check.exists(unistd.read(fd, opts.bufsize))
+        local res = check(posix.read(fd, opts.bufsize))
         if fd == sr then
           yield("stdout", res)
         elseif fd == er then
@@ -34,12 +33,12 @@ local function run_parent_loop (check, yield, opts, pid, fds, sr, er)
           check(false, "Invalid state: fd neither sr nor er")
         end
       elseif cfg.revents.HUP then
-        check.exists(unistd.close(fd))
+        check.exists(posix.close(fd))
         fds[fd] = nil
       end
 
       if not next(fds) then
-        local _, reason, status = check.exists(wait.wait(pid))
+        local _, reason, status = check(posix.wait(pid))
         yield("exit", reason, status)
         return
       end
@@ -50,8 +49,8 @@ end
 
 local function run_parent (check, opts, pid, sr, sw, er, ew)
 
-  check.exists(unistd.close(sw))
-  check.exists(unistd.close(ew))
+  check.exists(posix.close(sw))
+  check.exists(posix.close(ew))
 
   local fds = { [sr] = { events = { IN = true } },
                 [er] = { events = { IN = true } } }
@@ -79,14 +78,14 @@ return function (...)
   end
 
   -- TODO: PIPE_BUF is probably not the best default
-  opts.bufsize = opts.bufsize or unistd._PC_PIPE_BUF
+  opts.bufsize = opts.bufsize or 4096
 
   return err.pwrap(function (check)
 
     io.flush()
-    local sr, sw = check.exists(unistd.pipe())
-    local er, ew = check.exists(unistd.pipe())
-    local pid = check.exists(unistd.fork())
+    local sr, sw = check(posix.pipe())
+    local er, ew = check(posix.pipe())
+    local pid = check(posix.fork())
 
     if pid == 0 then
       return run_child(check, file, args, sr, sw, er, ew)
