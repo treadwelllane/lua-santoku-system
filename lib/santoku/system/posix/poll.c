@@ -36,6 +36,29 @@
 #define tk_system_pushintegerresult(n) (lua_pushinteger(L, (n)), 1)
 #define tk_system_optint(L,n,d) ((int)tk_system_expectoptinteger(L,n,d,"integer or nil"))
 
+lua_Number tk_system_tonumberx (lua_State *L, int i, int *isnum) {
+  lua_Number n = lua_tonumber(L, i);
+  if (isnum != NULL) {
+    *isnum = (n != 0 || lua_isnumber(L, i));
+  }
+  return n;
+}
+
+lua_Integer tk_system_tointegerx (lua_State *L, int i, int *isnum) {
+  int ok = 0;
+  lua_Number n = tk_system_tonumberx (L, i, &ok);
+  if (ok) {
+    if (n == (lua_Integer)n) {
+      if (isnum)
+        *isnum = 1;
+      return (lua_Integer)n;
+    }
+  }
+  if (isnum)
+    *isnum = 0;
+  return 0;
+}
+
 int tk_system_argtypeerror (lua_State *L, int narg, const char *expected)
 {
 	const char *got = luaL_typename(L, narg);
@@ -46,7 +69,7 @@ int tk_system_argtypeerror (lua_State *L, int narg, const char *expected)
 lua_Integer tk_system_expectinteger (lua_State *L, int narg, const char *expected)
 {
 	int isconverted = 0;
-	lua_Integer d = lua_tointegerx(L, narg, &isconverted);
+	lua_Integer d = tk_system_tointegerx(L, narg, &isconverted);
 	if (!isconverted)
 		tk_system_argtypeerror(L, narg, expected);
 	return d;

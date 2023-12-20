@@ -1,5 +1,6 @@
 # Now
 
+- addn setenv
 - Split posix components to separeate santoku-system-posix library
 - Re-write poll
 - Finish pread/parallel
