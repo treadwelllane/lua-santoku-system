@@ -55,4 +55,18 @@ test("system", function ()
 
   end)
 
+  test("should setenv", function ()
+
+      local ok, iter = sys.pread({ env = { HELLO = "Hello, World!" }, bufsize = 500 }, "sh", "-c", "echo $HELLO")
+
+      assert.equals(true, ok, iter)
+
+      assert.same({
+        { "stdout", "Hello, World!\n", n = 2 },
+        { "exit", "exited", 0, n = 3},
+        n = 2
+      }, iter:vec())
+
+  end)
+
 end)
