@@ -5,7 +5,10 @@ local gen = require("santoku.gen")
 local posix = require("santoku.system.posix")
 local poll = require("santoku.system.posix.poll")
 
-local function run_child (check, file, args, sr, sw, er, ew)
+local function run_child (check, opts, file, args, sr, sw, er, ew)
+  for k, v in pairs(opts.env or {}) do
+    check(posix.setenv(k, v))
+  end
   check(posix.close(sr))
   check(posix.close(er))
   check(posix.dup2(sw, 1))
@@ -88,7 +91,7 @@ return function (...)
     local pid = check(posix.fork())
 
     if pid == 0 then
-      return run_child(check, file, args, sr, sw, er, ew)
+      return run_child(check, opts, file, args, sr, sw, er, ew)
     else
       return run_parent(check, opts, pid, sr, sw, er, ew)
     end

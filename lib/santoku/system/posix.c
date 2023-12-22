@@ -45,6 +45,16 @@ int tk_system_posix_read (lua_State *L)
   return 2;
 }
 
+int tk_system_posix_setenv (lua_State *L)
+{
+  const char *k = luaL_checkstring(L, 1);
+  const char *v = luaL_checkstring(L, 2);
+  if (setenv(k, v, 1) == -1)
+    return tk_system_posix_err(L, errno);
+  lua_pushboolean(L, 1);
+  return 1;
+}
+
 int tk_system_posix_dup2 (lua_State *L)
 {
   int new = luaL_checkinteger(L, -1);
@@ -136,6 +146,7 @@ luaL_Reg tk_system_posix_fns[] =
   { "fork", tk_system_posix_fork },
   { "read", tk_system_posix_read },
   { "wait", tk_system_posix_wait },
+  { "setenv", tk_system_posix_setenv },
   { NULL, NULL }
 };
 

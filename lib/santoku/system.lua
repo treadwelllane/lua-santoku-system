@@ -1,8 +1,10 @@
 local err = require("santoku.err")
 local tup = require("santoku.tuple")
+local posix = require("santoku.system.posix")
 
 local M = {}
 
+M.setenv = posix.setenv
 M.pread = require("santoku.system.pread")
 M.sh = require("santoku.system.sh")
 
