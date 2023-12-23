@@ -36,7 +36,7 @@ local function run_parent_loop (check, yield, opts, pid, fds, sr, er)
           check(false, "Invalid state: fd neither sr nor er")
         end
       elseif cfg.revents.HUP then
-        check.exists(posix.close(fd))
+        check:exists(posix.close(fd))
         fds[fd] = nil
       end
 
@@ -52,8 +52,8 @@ end
 
 local function run_parent (check, opts, pid, sr, sw, er, ew)
 
-  check.exists(posix.close(sw))
-  check.exists(posix.close(ew))
+  check:exists(posix.close(sw))
+  check:exists(posix.close(ew))
 
   local fds = { [sr] = { events = { IN = true } },
                 [er] = { events = { IN = true } } }
