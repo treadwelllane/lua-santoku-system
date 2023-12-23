@@ -14,7 +14,7 @@ local function run_child (check, opts, file, args, sr, sw, er, ew)
   check(posix.dup2(sw, 1))
   check(posix.dup2(ew, 2))
   local _, err, cd = posix.execp(file, args)
-  io.stderr:write(table.concat({ err, ": ", cd, "\n" }))
+  io.stderr:write(table.concat({ "Error in exec for ", file, ": ", err, ": ", cd, "\n" }))
   io.stderr:flush()
   os.exit(1)
 end
