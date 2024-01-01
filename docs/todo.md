@@ -1,5 +1,6 @@
 # Now
 
+- Fix nil: nil: nil: nil: etc on command failure
 - addn setenv
 - Split posix components to separeate santoku-system-posix library
 - Re-write poll
