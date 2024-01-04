@@ -13,8 +13,8 @@ M.execute = function (opts, ...)
   if type(opts) == "table" then
     opts.execute = true
   else
-    opts = { execute = true }
     args = tup(opts, args())
+    opts = { execute = true }
   end
   return err.pwrap(function (check)
     check(M.sh(opts, args())):map(check):each(print)
