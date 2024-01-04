@@ -8,10 +8,16 @@ M.setenv = posix.setenv
 M.pread = require("santoku.system.pread")
 M.sh = require("santoku.system.sh")
 
-M.execute = function (...)
+M.execute = function (opts, ...)
   local args = tup(...)
+  if type(opts) == "table" then
+    opts.execute = true
+  else
+    opts = { execute = true }
+    args = tup(opts, args())
+  end
   return err.pwrap(function (check)
-    check(M.sh(args())):map(check):each(print)
+    check(M.sh(opts, args())):map(check):each(print)
   end)
 end
 

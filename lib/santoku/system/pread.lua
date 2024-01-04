@@ -9,10 +9,12 @@ local function run_child (check, opts, file, args, sr, sw, er, ew)
   for k, v in pairs(opts.env or {}) do
     check(posix.setenv(k, v))
   end
-  check(posix.close(sr))
-  check(posix.close(er))
-  check(posix.dup2(sw, 1))
-  check(posix.dup2(ew, 2))
+  if not opts.execute then
+    check(posix.close(sr))
+    check(posix.close(er))
+    check(posix.dup2(sw, 1))
+    check(posix.dup2(ew, 2))
+  end
   local _, err, cd = posix.execp(file, args)
   io.stderr:write(table.concat({ "Error in exec for ", file, ": ", err, ": ", cd, "\n" }))
   io.stderr:flush()
@@ -20,6 +22,13 @@ local function run_child (check, opts, file, args, sr, sw, er, ew)
 end
 
 local function run_parent_loop (check, yield, opts, pid, fds, sr, er)
+
+  if opts.execute then
+    local _, reason, status = check(posix.wait(pid))
+    yield("exit", reason, status)
+    return
+  end
+
   while true do
 
     check(poll(fds))
@@ -48,6 +57,7 @@ local function run_parent_loop (check, yield, opts, pid, fds, sr, er)
 
     end
   end
+
 end
 
 local function run_parent (check, opts, pid, sr, sw, er, ew)
