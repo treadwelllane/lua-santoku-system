@@ -21,22 +21,4 @@ M.execute = function (opts, ...)
   end)
 end
 
-M.tmpfile = function ()
-  local fp, err = os.tmpname()
-  if not fp then
-    return false, err
-  else
-    return true, fp
-  end
-end
-
-M.rm = function (...)
-  local ok, err, code = os.remove(...)
-  if not ok then
-    return false, err, code
-  else
-    return true
-  end
-end
-
 return M
