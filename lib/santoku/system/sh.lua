@@ -1,4 +1,4 @@
-local err = require("santoku.err")
+local check = require("santoku.check")
 local tup = require("santoku.tuple")
 local gen = require("santoku.gen")
 local vec = require("santoku.vector")
@@ -51,7 +51,7 @@ end
 
 return function (...)
   local args = tup(...)
-  return err.pwrap(function (check)
+  return check:wrap(function (check)
     local iter = check(pread(args())):co()
     return gen(function (yield)
       local chunks = vec()

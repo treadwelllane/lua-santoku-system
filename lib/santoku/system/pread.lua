@@ -1,4 +1,4 @@
-local err = require("santoku.err")
+local check = require("santoku.check")
 local tup = require("santoku.tuple")
 local gen = require("santoku.gen")
 
@@ -31,7 +31,7 @@ local function run_parent_loop (check, yield, opts, pid, fds, sr, er)
 
   while true do
 
-    check(poll(fds))
+    check:exists(poll(fds))
 
     for fd, cfg in pairs(fds) do
 
@@ -45,7 +45,7 @@ local function run_parent_loop (check, yield, opts, pid, fds, sr, er)
           check(false, "Invalid state: fd neither sr nor er")
         end
       elseif cfg.revents.HUP then
-        check:exists(posix.close(fd))
+        check(posix.close(fd))
         fds[fd] = nil
       end
 
@@ -62,14 +62,14 @@ end
 
 local function run_parent (check, opts, pid, sr, sw, er, ew)
 
-  check:exists(posix.close(sw))
-  check:exists(posix.close(ew))
+  check(posix.close(sw))
+  check(posix.close(ew))
 
   local fds = { [sr] = { events = { IN = true } },
                 [er] = { events = { IN = true } } }
 
   return gen(function (yield)
-    err.check(err.pwrap(function (check)
+    return require("santoku.check")(check:wrap(function (check)
       return run_parent_loop(check, yield, opts, pid, fds, sr, er)
     end))
   end)
@@ -93,7 +93,7 @@ return function (...)
   -- TODO: PIPE_BUF is probably not the best default
   opts.bufsize = opts.bufsize or 4096
 
-  return err.pwrap(function (check)
+  return check:wrap(function (check)
 
     io.flush()
     local sr, sw = check(posix.pipe())

@@ -1,4 +1,4 @@
-local err = require("santoku.err")
+local check = require("santoku.check")
 local tup = require("santoku.tuple")
 local posix = require("santoku.system.posix")
 
@@ -16,7 +16,7 @@ M.execute = function (opts, ...)
     args = tup(opts, args())
     opts = { execute = true }
   end
-  return err.pwrap(function (check)
+  return check:wrap(function (check)
     check(M.sh(opts, args())):map(check):each(print)
   end)
 end
