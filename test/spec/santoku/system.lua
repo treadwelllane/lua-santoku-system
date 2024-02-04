@@ -1,72 +1,76 @@
-local assert = require("luassert")
 local test = require("santoku.test")
+local serialize = require("santoku.serialize") -- luacheck: ignore
+
+local err = require("santoku.error")
+local assert = err.assert
+
+local tbl = require("santoku.table")
+local teq = tbl.equals
+
+local iter = require("santoku.iter")
+local icollect = iter.collect
+local imap = iter.map
+
+local arr = require("santoku.array")
+local apack = arr.pack
+
 local sys = require("santoku.system")
 
-test("system", function ()
+test("pread", function ()
 
-  test("pread", function ()
+  test("should provide a chunked iterator for a forked processes stout and stderr", function ()
 
-    test("should provide a chunked iterator for a forked processes stout and stderr", function ()
+    local iter = sys.pread({
+      "sh", "-c", "echo a; sleep 1; echo b >&2; exit 1",
+      bufsize = 500
+    })
 
-      local ok, iter = sys.pread({ bufsize = 500 }, "sh", "-c", "echo a; sleep 1; echo b >&2; exit 1")
-
-      assert.equals(true, ok, iter)
-
-      assert.same({
-        { "stdout", "a\n", n = 2 },
-        { "stderr", "b\n", n = 2 },
-        { "exit", "exited", 1, n = 3},
-        n = 3
-      }, iter:vec())
-
-    end)
+    assert(teq({
+      { "stdout", "a\n" },
+      { "stderr", "b\n" },
+      { "exit", "exited", 1 },
+    }, icollect(imap(apack, iter))))
 
   end)
 
-  test("sh", function ()
+end)
 
-    test("should provide a line-buffered iterator for a forked processes stout", function ()
+test("sh", function ()
 
-      local ok, iter = sys.sh("sh", "-c", "echo a; echo b; exit 0")
+  test("should provide a line-buffered iterator for a forked processes stout", function ()
 
-      assert.equals(true, ok, iter)
+    local iter = sys.sh({ "sh", "-c", "echo a; echo b; exit 0" })
 
-      assert.same({
-        { true, "a", n = 2 },
-        { true, "b", n = 2 },
-        n = 2
-      }, iter:vec())
-
-    end)
-
-    test("should work with longer outputs", function ()
-
-      local ok, iter = sys.sh("sh", "-c", "echo the quick brown fox; echo jumped over the lazy dog; exit 0")
-
-      assert.equals(true, ok, iter)
-
-      assert.same({
-        { true, "the quick brown fox", n = 2 },
-        { true, "jumped over the lazy dog", n = 2 },
-        n = 2
-      }, iter:vec())
-
-    end)
+    assert(teq({
+      { "a" },
+      { "b" },
+    }, icollect(imap(apack, iter))))
 
   end)
 
-  test("should setenv", function ()
+  test("should work with longer outputs", function ()
 
-      local ok, iter = sys.pread({ env = { HELLO = "Hello, World!" }, bufsize = 500 }, "sh", "-c", "echo $HELLO")
+    local iter = sys.sh({ "sh", "-c", "echo the quick brown fox; echo jumped over the lazy dog; exit 0" })
 
-      assert.equals(true, ok, iter)
-
-      assert.same({
-        { "stdout", "Hello, World!\n", n = 2 },
-        { "exit", "exited", 0, n = 3},
-        n = 2
-      }, iter:vec())
+    assert(teq({
+      { "the quick brown fox" },
+      { "jumped over the lazy dog" },
+    }, icollect(imap(apack, iter))))
 
   end)
+
+end)
+
+test("should setenv", function ()
+
+    local iter = sys.pread({
+      "sh", "-c", "echo $HELLO",
+      env = { HELLO = "Hello, World!" }, bufsize = 500
+    })
+
+    assert(teq({
+      { "stdout", "Hello, World!\n" },
+      { "exit", "exited", 0 },
+    }, icollect(imap(apack, iter))))
 
 end)

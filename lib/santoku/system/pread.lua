@@ -1,110 +1,133 @@
-local check = require("santoku.check")
-local tup = require("santoku.tuple")
-local gen = require("santoku.gen")
+local err = require("santoku.error")
+local wrapnil = err.wrapnil
+local assert = err.assert
+local error = err.error
+
+local validate = require("santoku.validate")
+local hasindex = validate.hasindex
+
+local arr = require("santoku.array")
+local ashift = arr.shift
+local acat = arr.concat
 
 local posix = require("santoku.system.posix")
-local poll = require("santoku.system.posix.poll")
+local BUFSIZ = posix.BUFSIZ
+local pipe = posix.pipe
+local fork = posix.fork
+local read = posix.read
+local setenv = posix.setenv
+local dup2 = posix.dup2
+local close = posix.close
+local execp = posix.execp
+local wait = posix.wait
 
-local function run_child (check, opts, file, args, sr, sw, er, ew)
-  for k, v in pairs(opts.env or {}) do
-    check(posix.setenv(k, v))
-  end
-  if not opts.execute then
-    check(posix.close(sr))
-    check(posix.close(er))
-    check(posix.dup2(sw, 1))
-    check(posix.dup2(ew, 2))
-  end
-  local _, err, cd = posix.execp(file, args)
-  io.stderr:write(table.concat({ "Error in exec for ", file, ": ", err, ": ", cd, "\n" }))
-  io.stderr:flush()
-  os.exit(1)
-end
+local _flush = io.flush
+local _write = io.write
+local _stderr = io.stderr
+local _exit = os.exit
 
-local function run_parent_loop (check, yield, opts, pid, fds, sr, er)
+local _poll = require("santoku.system.posix.poll")
+local poll = wrapnil(_poll)
 
-  if opts.execute then
-    local _, reason, status = check(posix.wait(pid))
-    yield("exit", reason, status)
-    return
-  end
+local function run_child (opts, sr, sw, er, ew)
 
-  while true do
-
-    check:exists(poll(fds))
-
-    for fd, cfg in pairs(fds) do
-
-      if cfg.revents.IN then
-        local res = check(posix.read(fd, opts.bufsize))
-        if fd == sr then
-          yield("stdout", res)
-        elseif fd == er then
-          yield("stderr", res)
-        else
-          check(false, "Invalid state: fd neither sr nor er")
-        end
-      elseif cfg.revents.HUP then
-        check(posix.close(fd))
-        fds[fd] = nil
-      end
-
-      if not next(fds) then
-        local _, reason, status = check(posix.wait(pid))
-        yield("exit", reason, status)
-        return
-      end
-
+  if opts.env then
+    for k, v in pairs(opts.env) do
+      setenv(k, v)
     end
   end
 
+  if not opts.execute then
+    close(sr)
+    close(er)
+    dup2(sw, 1)
+    dup2(ew, 2)
+  end
+
+  local _, err, cd = execp(opts[1], ashift(opts))
+
+  _write(_stderr, acat({ "Error in exec for ", opts[1], ": ", err, ": ", cd, "\n" }))
+  _flush(_stderr)
+  _exit(1)
+
 end
 
-local function run_parent (check, opts, pid, sr, sw, er, ew)
+local function run_parent_loop (opts, pid, fds, sr, er)
 
-  check(posix.close(sw))
-  check(posix.close(ew))
+  if opts.execute then
+    local _, reason, status = wait(pid)
+    return "exit", reason, status
+  end
+
+  local fd, cfg
+  local done = false
+
+  local function helper ()
+
+    if done then
+      return
+    end
+
+    poll(fds)
+
+    fd, cfg = next(fds, fd)
+
+    if not fd then
+      done = true
+      local _, reason, status = wait(pid)
+      return "exit", reason, status
+    end
+
+    local revents = cfg.revents
+
+    if revents.IN then
+      local res = read(fd, opts.bufsize)
+      if fd == sr then
+        return "stdout", res
+      elseif fd == er then
+        return "stderr", res
+      else
+        error("polled fd is neither stdout nor stderr", fd)
+      end
+    elseif revents.HUP then
+      close(fd)
+      fds[fd] = nil
+    end
+
+    return helper()
+
+  end
+
+  return helper
+
+end
+
+local function run_parent (opts, pid, sr, sw, er, ew)
+
+  close(sw)
+  close(ew)
 
   local fds = { [sr] = { events = { IN = true } },
                 [er] = { events = { IN = true } } }
 
-  return gen(function (yield)
-    return require("santoku.check")(check:wrap(function (check)
-      return run_parent_loop(check, yield, opts, pid, fds, sr, er)
-    end))
-  end)
+  return run_parent_loop(opts, pid, fds, sr, er)
 
 end
 
-return function (...)
+return function (opts)
 
-  local opts, args, file
+  assert(hasindex(opts))
+  opts.bufsize = opts.bufsize or BUFSIZ
 
-  if type((...)) == "table" then
-    opts = tup.get(1, ...)
-    file = tup.get(2, ...)
-    args = { tup.sel(3, ...) }
+  _flush()
+  local sr, sw = pipe()
+  local er, ew = pipe()
+  local pid = fork()
+
+  if pid == 0 then
+    return run_child(opts, sr, sw, er, ew)
   else
-    opts = {}
-    file = tup.get(1, ...)
-    args = { tup.sel(2, ...) }
+    return run_parent(opts, pid, sr, sw, er, ew)
   end
 
-  -- TODO: PIPE_BUF is probably not the best default
-  opts.bufsize = opts.bufsize or 4096
-
-  return check:wrap(function (check)
-
-    io.flush()
-    local sr, sw = check(posix.pipe())
-    local er, ew = check(posix.pipe())
-    local pid = check(posix.fork())
-
-    if pid == 0 then
-      return run_child(check, opts, file, args, sr, sw, er, ew)
-    else
-      return run_parent(check, opts, pid, sr, sw, er, ew)
-    end
-
-  end)
 end

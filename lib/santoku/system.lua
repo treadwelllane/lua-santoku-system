@@ -1,24 +1,24 @@
-local check = require("santoku.check")
-local tup = require("santoku.tuple")
+local iter = require("santoku.iter")
+local ieach = iter.ieach
+
+local tbl = require("santoku.table")
+local tassign = tbl.assign
+
+local validate = require("santoku.validate")
+local hasindex = validate.hasindex
+
 local posix = require("santoku.system.posix")
+local pread = require("santoku.system.pread")
+local sh = require("santoku.system.sh")
 
-local M = {}
-
-M.setenv = posix.setenv
-M.pread = require("santoku.system.pread")
-M.sh = require("santoku.system.sh")
-
-M.execute = function (opts, ...)
-  local args = tup(...)
-  if type(opts) == "table" then
-    opts.execute = true
-  else
-    args = tup(opts, args())
-    opts = { execute = true }
-  end
-  return check:wrap(function (check)
-    check(M.sh(opts, args())):map(check):each(print)
-  end)
+local function execute (opts)
+  assert(hasindex(opts))
+  opts.execute = true
+  return ieach(print, sh(opts))
 end
 
-return M
+return tassign({}, {
+  execute = execute,
+  pread = pread,
+  sh = sh
+}, posix)
