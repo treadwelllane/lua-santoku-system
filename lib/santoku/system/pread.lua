@@ -7,8 +7,8 @@ local validate = require("santoku.validate")
 local hasindex = validate.hasindex
 
 local arr = require("santoku.array")
-local ashift = arr.shift
-local acat = arr.concat
+local shift = arr.shift
+local cat = arr.concat
 
 local posix = require("santoku.system.posix")
 local BUFSIZ = posix.BUFSIZ
@@ -21,13 +21,12 @@ local close = posix.close
 local execp = posix.execp
 local wait = posix.wait
 
-local _flush = io.flush
-local _write = io.write
-local _stderr = io.stderr
-local _exit = os.exit
+local flush = io.flush
+local write = io.write
+local stderr = io.stderr
+local exit = os.exit
 
-local _poll = require("santoku.system.posix.poll")
-local poll = wrapnil(_poll)
+local poll = wrapnil(require("santoku.system.posix.poll"))
 
 local function run_child (opts, sr, sw, er, ew)
 
@@ -44,11 +43,11 @@ local function run_child (opts, sr, sw, er, ew)
     dup2(ew, 2)
   end
 
-  local _, err, cd = execp(opts[1], ashift(opts))
+  local _, err, cd = execp(opts[1], shift(opts))
 
-  _write(_stderr, acat({ "Error in exec for ", opts[1], ": ", err, ": ", cd, "\n" }))
-  _flush(_stderr)
-  _exit(1)
+  write(stderr, cat({ "Error in exec for ", opts[1], ": ", err, ": ", cd, "\n" }))
+  flush(stderr)
+  exit(1)
 
 end
 
@@ -119,7 +118,7 @@ return function (opts)
   assert(hasindex(opts))
   opts.bufsize = opts.bufsize or BUFSIZ
 
-  _flush()
+  flush()
   local sr, sw = pipe()
   local er, ew = pipe()
   local pid = fork()
