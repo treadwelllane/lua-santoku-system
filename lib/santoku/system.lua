@@ -1,8 +1,8 @@
 local iter = require("santoku.iter")
-local ieach = iter.ieach
+local each = iter.each
 
 local tbl = require("santoku.table")
-local tassign = tbl.assign
+local assign = tbl.assign
 
 local validate = require("santoku.validate")
 local hasindex = validate.hasindex
@@ -14,10 +14,10 @@ local sh = require("santoku.system.sh")
 local function execute (opts)
   assert(hasindex(opts))
   opts.execute = true
-  return ieach(print, sh(opts))
+  return each(print, sh(opts))
 end
 
-return tassign({}, {
+return assign({}, {
   execute = execute,
   pread = pread,
   sh = sh

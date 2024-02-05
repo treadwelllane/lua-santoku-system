@@ -53,11 +53,6 @@ end
 
 local function run_parent_loop (opts, pid, fds, sr, er)
 
-  if opts.execute then
-    local _, reason, status = wait(pid)
-    return "exit", reason, status
-  end
-
   local fd, cfg
   local done = false
 
@@ -65,6 +60,12 @@ local function run_parent_loop (opts, pid, fds, sr, er)
 
     if done then
       return
+    end
+
+    if opts.execute then
+      local _, reason, status = wait(pid)
+      done = true
+      return "exit", reason, status
     end
 
     poll(fds)
