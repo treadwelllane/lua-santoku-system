@@ -1,5 +1,7 @@
 # Now
 
+- pread, sh, etc should return iter, handle such that the underlying process can
+  be killed with close(handle)
 - Re-use chunking logic from santoku-fs to more efficiently read from processes
 
 - Add support for reading from multiple jobs
