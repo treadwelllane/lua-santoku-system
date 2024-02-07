@@ -35,6 +35,9 @@ return function (opts)
           (sub(chunks[#chunks], e + 1, #chunks[#chunks])))
         local out = acat(chunks, "", 1, #chunks - 1)
         aoverlay(chunks, 1, chunks[#chunks])
+        if chunks[#chunks] == "" then
+          chunks[#chunks] = nil
+        end
         return out
       end
     end
@@ -65,7 +68,7 @@ return function (opts)
         local reason, status = ...
         if reason == "exited" and status == 0 then
           done = true
-          return
+          return #chunks > 0 and acat(chunks) or nil
         else
           return error("child process exited with unexpected status", ...)
         end
