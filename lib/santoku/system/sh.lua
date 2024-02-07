@@ -12,8 +12,7 @@ local acat = arr.concat
 
 local find = string.find
 local sub = string.sub
-local _write = io.write
-local _stderr = io.stderr
+local stderr = io.stderr
 
 return function (opts)
 
@@ -58,7 +57,7 @@ return function (opts)
 
       elseif ev == "stderr" then
 
-        _write(_stderr, (...))
+        stderr:write((...))
         return helper()
 
       elseif ev == "exit" then
