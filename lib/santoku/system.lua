@@ -17,8 +17,8 @@ local function execute (opts)
   return each(print, sh(opts))
 end
 
-return assign({}, {
+return assign({
   execute = execute,
   pread = pread,
   sh = sh
-}, posix)
+}, posix, false)
