@@ -1,10 +1,10 @@
 local err = require("santoku.error")
 local wrapnil = err.wrapnil
-local assert = err.assert
+-- local assert = err.assert
 local error = err.error
 
-local validate = require("santoku.validate")
-local hasindex = validate.hasindex
+-- local validate = require("santoku.validate")
+-- local hasindex = validate.hasindex
 
 local arr = require("santoku.array")
 local shift = arr.shift
@@ -62,7 +62,7 @@ local function run_parent_loop (opts, pid, fds, sr, er)
       return
     end
 
-    if opts.execute then
+    if opts.execute or not next(fds) then
       local _, reason, status = wait(pid)
       done = true
       return "exit", reason, status
@@ -70,7 +70,7 @@ local function run_parent_loop (opts, pid, fds, sr, er)
 
     poll(fds)
 
-    fd, cfg = next(fds, fd)
+    fd, cfg = next(fds)
 
     if not fd then
       done = true
@@ -89,7 +89,7 @@ local function run_parent_loop (opts, pid, fds, sr, er)
       else
         error("polled fd is neither stdout nor stderr", fd)
       end
-    elseif revents.HUP then
+    else
       close(fd)
       fds[fd] = nil
     end
@@ -116,7 +116,7 @@ end
 
 return function (opts)
 
-  assert(hasindex(opts))
+  -- assert(hasindex(opts))
   opts.bufsize = opts.bufsize or BUFSIZ
 
   flush()
