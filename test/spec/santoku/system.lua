@@ -4,6 +4,7 @@ local serialize = require("santoku.serialize") -- luacheck: ignore
 local err = require("santoku.error")
 local assert = err.assert
 
+
 local tbl = require("santoku.table")
 local teq = tbl.equals
 
@@ -29,7 +30,9 @@ test("pread", function ()
       { "stdout", "a\n" },
       { "stderr", "b\n" },
       { "exit", "exited", 1 },
-    }, icollect(imap(apack, iter))))
+    }, icollect(imap(function (t, _, ...)
+      return { t, ... }
+    end, iter))))
 
   end)
 
@@ -59,18 +62,87 @@ test("sh", function ()
 
   end)
 
+  test("should support multi-processing", function ()
+
+    local iter = sys.pread({
+      jobs = 4, job_var = "JOB",
+      "sh", "-c", "echo $JOB"
+    })
+
+    local r = arr.sort(icollect(imap(function (t, _, ...)
+      return { t, ... }
+    end, iter)), function (a, b)
+      return a[2] < b[2]
+    end)
+
+    assert(teq({
+      { "stdout", "1\n" },
+      { "stdout", "2\n" },
+      { "stdout", "3\n" },
+      { "stdout", "4\n" },
+      { "exit", "exited", 0 },
+      { "exit", "exited", 0 },
+      { "exit", "exited", 0 },
+      { "exit", "exited", 0 }
+    }, r))
+
+  end)
+
+  test("should support multi-processing with line chunking", function ()
+
+    local iter = sys.sh({
+      jobs = 4,
+      "sh", "-c", "echo 1"
+    })
+
+    local r = arr.sort(icollect(imap(apack, iter)), function (a, b)
+      return a[1] > b[1]
+    end)
+
+    assert(teq({
+      { "1" },
+      { "1" },
+      { "1" },
+      { "1" },
+    }, r))
+
+  end)
+
+  test("should suppport multi-processing without exec", function ()
+
+    local iter = sys.sh({
+      jobs = 4, fn = function (job)
+        print(job)
+      end
+    })
+
+    local r = arr.sort(icollect(imap(apack, iter)), function (a, b)
+      return a[1] < b[1]
+    end)
+
+    assert(teq({
+      { "1" },
+      { "2" },
+      { "3" },
+      { "4" },
+    }, r))
+
+  end)
+
 end)
 
 test("should setenv", function ()
 
-    local iter = sys.pread({
-      "sh", "-c", "echo $HELLO",
-      env = { HELLO = "Hello, World!" }, bufsize = 500
-    })
+  local iter = sys.pread({
+    "sh", "-c", "echo $HELLO",
+    env = { HELLO = "Hello, World!" }, bufsize = 500
+  })
 
-    assert(teq({
-      { "stdout", "Hello, World!\n" },
-      { "exit", "exited", 0 },
-    }, icollect(imap(apack, iter))))
+  assert(teq({
+    { "stdout", "Hello, World!\n" },
+    { "exit", "exited", 0 },
+  }, icollect(imap(function (t, _, ...)
+    return { t, ... }
+  end, iter))))
 
 end)

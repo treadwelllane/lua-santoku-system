@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 // TODO: Duplicated across various libraries, need to consolidate
-void tk_system_callmod (lua_State *L, int nargs, int nret, const char *smod, const char *sfn)
+static void tk_system_callmod (lua_State *L, int nargs, int nret, const char *smod, const char *sfn)
 {
   lua_getglobal(L, "require"); // arg req
   lua_pushstring(L, smod); // arg req smod
@@ -20,7 +20,7 @@ void tk_system_callmod (lua_State *L, int nargs, int nret, const char *smod, con
   lua_call(L, nargs, nret); // results
 }
 
-int tk_system_posix_err (lua_State *L, int err)
+static int tk_system_posix_err (lua_State *L, int err)
 {
   lua_pushstring(L, strerror(errno));
   lua_pushinteger(L, err);
@@ -28,7 +28,7 @@ int tk_system_posix_err (lua_State *L, int err)
   return 0;
 }
 
-int tk_system_posix_close (lua_State *L)
+static int tk_system_posix_close (lua_State *L)
 {
   int n = luaL_checkinteger(L, -1);
   int rc = close(n);
@@ -38,7 +38,7 @@ int tk_system_posix_close (lua_State *L)
 }
 
 // TODO: Use luaL_Buffer / prepbuffer
-int tk_system_posix_read (lua_State *L)
+static int tk_system_posix_read (lua_State *L)
 {
   int fd = luaL_checkinteger(L, -2);
   int size = luaL_checkinteger(L, -1);
@@ -56,7 +56,7 @@ int tk_system_posix_read (lua_State *L)
   return 1;
 }
 
-int tk_system_posix_setenv (lua_State *L)
+static int tk_system_posix_setenv (lua_State *L)
 {
   const char *k = luaL_checkstring(L, 1);
   const char *v = luaL_checkstring(L, 2);
@@ -65,7 +65,7 @@ int tk_system_posix_setenv (lua_State *L)
   return 0;
 }
 
-int tk_system_posix_dup2 (lua_State *L)
+static int tk_system_posix_dup2 (lua_State *L)
 {
   int new = luaL_checkinteger(L, -1);
   int old = luaL_checkinteger(L, -2);
@@ -75,7 +75,7 @@ int tk_system_posix_dup2 (lua_State *L)
   return 0;
 }
 
-int tk_system_posix_pipe (lua_State *L)
+static int tk_system_posix_pipe (lua_State *L)
 {
   int fds[2];
   int rc = pipe(fds);
@@ -86,7 +86,7 @@ int tk_system_posix_pipe (lua_State *L)
   return 2;
 }
 
-int tk_system_posix_execp (lua_State *L)
+static int tk_system_posix_execp (lua_State *L)
 {
 	const char *path = luaL_checkstring(L, -2);
   luaL_checktype(L, -1, LUA_TTABLE);
@@ -104,7 +104,7 @@ int tk_system_posix_execp (lua_State *L)
   return tk_system_posix_err(L, errno);
 }
 
-int tk_system_posix_fork (lua_State *L)
+static int tk_system_posix_fork (lua_State *L)
 {
   pid_t pid = fork();
   if (pid == -1)
@@ -113,7 +113,7 @@ int tk_system_posix_fork (lua_State *L)
   return 1;
 }
 
-int tk_system_posix_wait (lua_State *L)
+static int tk_system_posix_wait (lua_State *L)
 {
   int pid0 = luaL_checkinteger(L, -1);
   int status;
@@ -143,8 +143,18 @@ int tk_system_posix_wait (lua_State *L)
   }
 }
 
-luaL_Reg tk_system_posix_fns[] =
+static int tk_system_posix_get_num_cores (lua_State *L)
 {
+  long cores = sysconf(_SC_NPROCESSORS_ONLN);
+  if (cores <= 0)
+    return tk_system_posix_err(L, errno);
+  lua_pushinteger(L, cores);
+  return 1;
+}
+
+static luaL_Reg tk_system_posix_fns[] =
+{
+  { "get_num_cores", tk_system_posix_get_num_cores },
   { "close", tk_system_posix_close },
   { "dup2", tk_system_posix_dup2 },
   { "execp", tk_system_posix_execp },

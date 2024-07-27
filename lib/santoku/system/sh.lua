@@ -1,80 +1,111 @@
 local pread = require("santoku.system.pread")
 
 local err = require("santoku.error")
-local error = err.error
-
 local varg = require("santoku.varg")
-local tup = varg.tup
-
 local arr = require("santoku.array")
-local aoverlay = arr.overlay
-local acat = arr.concat
-
-local find = string.find
-local sub = string.sub
-local stderr = io.stderr
+local str = require("santoku.string")
 
 return function (opts)
 
   local iter = pread(opts)
 
   local done = false
-  local chunks = {}
+  local flushed = false
+  local pid_chunks = {}
+  local pid_ready = {}
 
   local function helper ()
 
-    if done then
+    if done and flushed then
       return
-    end
-
-    if #chunks > 0 then
-      local s, e = find(chunks[#chunks], "\n+")
-      if s then
-        aoverlay(chunks, #chunks,
-          (sub(chunks[#chunks], 1, s - 1)),
-          (sub(chunks[#chunks], e + 1, #chunks[#chunks])))
-        local out = acat(chunks, "", 1, #chunks - 1)
-        aoverlay(chunks, 1, chunks[#chunks])
-        if chunks[#chunks] == "" then
-          chunks[#chunks] = nil
+    elseif done and not flushed then
+      while true do
+        local pid, chunks = next(pid_chunks)
+        if not pid then
+          flushed = true
+          return
         end
-        return out
+        pid_chunks[pid] = nil
+        if #chunks > 0 then
+          local out = arr.concat(chunks)
+          return (str.gsub(out, "\n+$", ""))
+        end
       end
     end
 
-    return tup(function (ev, ...)
+    local pid, se = next(pid_ready)
+
+    if pid then
+
+      local chunks = pid_chunks[pid]
+
+      local s, e = se.s, se.e
+
+      arr.overlay(chunks, #chunks,
+        (str.sub(chunks[#chunks], 1, s - 1)),
+        (str.sub(chunks[#chunks], e + 1, #chunks[#chunks])))
+
+      local out = arr.concat(chunks, "", 1, #chunks - 1)
+
+      arr.overlay(chunks, 1, chunks[#chunks])
+
+      if chunks[#chunks] == "" then
+        chunks[#chunks] = nil
+      end
+
+      if chunks[#chunks] then
+        local s, e = str.find(chunks[#chunks], "\n+")
+        if s then
+          pid_ready[pid] = { s = s, e = e }
+        else
+          pid_ready[pid] = nil
+        end
+      else
+        pid_ready[pid] = nil
+      end
+
+      return out
+
+    end
+
+    return varg.tup(function (ev, pid, ...)
 
       if ev == nil then
         done = true
-        if #chunks > 0 then
-          return acat(chunks)
-        else
-          return
-        end
+        return helper()
       end
 
       if ev == "stdout" then
 
-        chunks[#chunks + 1] = (...)
+        local chunks = pid_chunks[pid] or {}
+        pid_chunks[pid] = chunks
+
+        local chunk = (...)
+        chunks[#chunks + 1] = chunk
+
+        local s, e = str.find(chunks[#chunks], "\n+")
+        if s then
+          pid_ready[pid] = { s = s, e = e }
+        end
+
         return helper()
 
       elseif ev == "stderr" then
 
-        stderr:write((...))
+        io.stderr:write((...))
         return helper()
 
       elseif ev == "exit" then
 
         local reason, status = ...
         if reason == "exited" and status == 0 then
-          done = true
-          return #chunks > 0 and acat(chunks) or nil
+          return helper()
         else
-          return error("child process exited with unexpected status", ...)
+          return err.error("child process exited with unexpected status", ...)
         end
 
       else
-        return error("unexpected event from pread", ev, ...)
+        return err.error("unexpected event from pread", ev, ...)
       end
 
     end, iter())
