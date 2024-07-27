@@ -89,6 +89,9 @@ local function run_parent_loop (opts, children, fds, fd_child)
             c.pid, res
       elseif cfg.revents.HUP then
         local c = fd_child[fd]
+        for k in pairs(fds[fd].events) do
+          fds[fd].events[k] = nil
+        end
         if not done[c] then
           c.closed = (c.closed or 0) + 1
           if c.closed >= 2 then
