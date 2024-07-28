@@ -90,11 +90,6 @@ return function (opts)
 
         return helper()
 
-      elseif ev == "stderr" then
-
-        io.stderr:write((...))
-        return helper()
-
       elseif ev == "exit" then
 
         local reason, status = ...

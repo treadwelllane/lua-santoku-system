@@ -23,7 +23,8 @@ test("pread", function ()
 
     local iter = sys.pread({
       "sh", "-c", "echo a; sleep 1; echo b >&2; exit 1",
-      bufsize = 500
+      bufsize = 500,
+      stderr = true,
     })
 
     assert(teq({

@@ -36,10 +36,14 @@ local function run_child (opts, job, sr, sw, er, ew)
   end
 
   if not opts.execute then
-    close(sr)
-    close(er)
-    dup2(sw, 1)
-    dup2(ew, 2)
+    if opts.stdout then
+      close(sr)
+      dup2(sw, 1)
+    end
+    if opts.stderr then
+      close(er)
+      dup2(ew, 2)
+    end
   end
 
   if opts.fn then
@@ -89,9 +93,6 @@ local function run_parent_loop (opts, children, fds, fd_child)
             c.pid, res
       elseif cfg.revents.HUP then
         local c = fd_child[fd]
-        for k in pairs(fds[fd].events) do
-          fds[fd].events[k] = nil
-        end
         if not done[c] then
           c.closed = (c.closed or 0) + 1
           if c.closed >= 2 then
@@ -119,12 +120,16 @@ local function run_parent (opts, children)
 
   for i = 1, #children do
     local c = children[i]
-    close(c.sw)
-    close(c.ew)
-    fds[c.sr] = { events = { IN = true } }
-    fds[c.er] = { events = { IN = true } }
-    fd_child[c.sr] = c
-    fd_child[c.er] = c
+    if opts.stdout then
+      close(c.sw)
+      fds[c.sr] = { events = { IN = true } }
+      fd_child[c.sr] = c
+    end
+    if opts.stderr then
+      close(c.ew)
+      fds[c.er] = { events = { IN = true } }
+      fd_child[c.er] = c
+    end
   end
 
   return run_parent_loop(opts, children, fds, fd_child)
@@ -139,20 +144,25 @@ return function (opts)
   local children = {}
 
   opts.jobs = (opts.execute or not opts.jobs) and 1 or opts.jobs
+  opts.stderr = opts.stderr == true
+  opts.stdout = opts.stdout ~= false
 
   for job = 1, opts.jobs or 1 do
-    local sr, sw = pipe()
-    local er, ew = pipe()
+    local sr, sw, er, ew
+    if opts.stdout then
+      sr, sw = pipe()
+    end
+    if opts.stderr then
+      er, ew = pipe()
+    end
     local pid = fork()
     if pid == 0 then
       return run_child(opts, job, sr, sw, er, ew)
     else
       arr.push(children, {
         pid = pid,
-        sr = sr,
-        sw = sw,
-        er = er,
-        ew = ew,
+        sr = sr, sw = sw,
+        er = er, ew = ew,
       })
     end
   end
