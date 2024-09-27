@@ -1,6 +1,9 @@
 local err = require("santoku.error")
 local wrapnil = err.wrapnil
 
+local varg = require("santoku.varg")
+local tup = varg.tup
+
 local arr = require("santoku.array")
 local shift = arr.shift
 local cat = arr.concat
@@ -17,7 +20,6 @@ local execp = posix.execp
 local wait = posix.wait
 
 local flush = io.flush
-local write = io.write
 local stderr = io.stderr
 local exit = os.exit
 
@@ -53,11 +55,16 @@ local function run_child (opts, job, sr, sw, er, ew)
 
   else
 
-    local _, err, cd = execp(opts[1], shift(opts))
+    local prog = opts[1]
+    shift(opts)
 
-    write(stderr, cat({ "Error in exec for ", opts[1], ": ", err, ": ", cd, "\n" }))
-    flush(stderr)
-    exit(1)
+    tup(function (_, err, cd)
+
+      stderr:write(cat({ "Error in exec for: ", prog or "(nil)", ": ", err or "(nil)", ": ", cd or "(nil)", "\n" }))
+      flush(stderr)
+      exit(1)
+
+    end, err.pcall(execp, prog, opts))
 
   end
 

@@ -147,3 +147,19 @@ test("should setenv", function ()
   end, iter))))
 
 end)
+
+test("file not found", function ()
+  assert(teq({
+    {
+      "stderr",
+      "Error in exec for: __not_a_program__: No such file or directory: 2\n"
+    },
+    {
+      "exit",
+      "exited",
+      1
+    }
+  }, icollect(imap(function (t, _, ...)
+    return { t, ... }
+  end, sys.pread({ "__not_a_program__", stderr = true })))))
+end)
