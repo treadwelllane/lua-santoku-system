@@ -7,8 +7,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-// TODO: Duplicated across various libraries, need to consolidate
-static void tk_system_callmod (lua_State *L, int nargs, int nret, const char *smod, const char *sfn)
+static inline void tk_lua_callmod (lua_State *L, int nargs, int nret, const char *smod, const char *sfn)
 {
   lua_getglobal(L, "require"); // arg req
   lua_pushstring(L, smod); // arg req smod
@@ -20,11 +19,28 @@ static void tk_system_callmod (lua_State *L, int nargs, int nret, const char *sm
   lua_call(L, nargs, nret); // results
 }
 
-static int tk_system_posix_err (lua_State *L, int err)
+static inline unsigned int tk_lua_checkunsigned (lua_State *L, int i)
+{
+  lua_Integer l = luaL_checkinteger(L, i);
+  if (l < 0)
+    luaL_error(L, "value can't be negative");
+  if (l > UINT_MAX)
+    luaL_error(L, "value is too large");
+  return (unsigned int) l;
+}
+
+static inline int tk_lua_errno (lua_State *L, int err)
 {
   lua_pushstring(L, strerror(errno));
   lua_pushinteger(L, err);
-  tk_system_callmod(L, 2, 0, "santoku.error", "error");
+  tk_lua_callmod(L, 2, 0, "santoku.error", "error");
+  return 0;
+}
+
+static inline int tk_lua_errmalloc (lua_State *L)
+{
+  lua_pushstring(L, "Error in malloc");
+  tk_lua_callmod(L, 1, 0, "santoku.error", "error");
   return 0;
 }
 
@@ -33,7 +49,7 @@ static int tk_system_posix_close (lua_State *L)
   int n = luaL_checkinteger(L, -1);
   int rc = close(n);
   if (rc == -1)
-    return tk_system_posix_err(L, errno);
+    return tk_lua_errno(L, errno);
   return 0;
 }
 
@@ -44,12 +60,12 @@ static int tk_system_posix_read (lua_State *L)
   int size = luaL_checkinteger(L, -1);
   char *buf = malloc(size); // buf
   if (buf == NULL)
-    return tk_system_posix_err(L, ENOMEM);
+    return tk_lua_errmalloc(L);
   int bytes = read(fd, buf, size);
   if (bytes == -1) {
     int err = errno;
     free(buf);
-    return tk_system_posix_err(L, err);
+    return tk_lua_errno(L, err);
   }
   lua_pushlstring(L, buf, bytes);
   free(buf);
@@ -61,7 +77,7 @@ static int tk_system_posix_setenv (lua_State *L)
   const char *k = luaL_checkstring(L, 1);
   const char *v = luaL_checkstring(L, 2);
   if (setenv(k, v, 1) == -1)
-    return tk_system_posix_err(L, errno);
+    return tk_lua_errno(L, errno);
   return 0;
 }
 
@@ -71,7 +87,7 @@ static int tk_system_posix_dup2 (lua_State *L)
   int old = luaL_checkinteger(L, -2);
   int rc = dup2(old, new);
   if (rc == -1)
-    return tk_system_posix_err(L, errno);
+    return tk_lua_errno(L, errno);
   return 0;
 }
 
@@ -80,7 +96,7 @@ static int tk_system_posix_pipe (lua_State *L)
   int fds[2];
   int rc = pipe(fds);
   if (rc == -1)
-    return tk_system_posix_err(L, errno);
+    return tk_lua_errno(L, errno);
   lua_pushinteger(L, fds[0]);
   lua_pushinteger(L, fds[1]);
   return 2;
@@ -101,16 +117,23 @@ static int tk_system_posix_execp (lua_State *L)
     lua_pop(L, 1); // prg argt
   }
 	execvp(path, argv);
-  return tk_system_posix_err(L, errno);
+  return tk_lua_errno(L, errno);
 }
 
 static int tk_system_posix_fork (lua_State *L)
 {
   pid_t pid = fork();
   if (pid == -1)
-    return tk_system_posix_err(L, errno);
+    return tk_lua_errno(L, errno);
   lua_pushinteger(L, pid);
   return 1;
+}
+
+static int tk_system_posix_sleep (lua_State *L)
+{
+  unsigned time = tk_lua_checkunsigned(L, 1);
+  usleep(time * 1000); // us to ms
+  return 0;
 }
 
 static int tk_system_posix_wait (lua_State *L)
@@ -119,7 +142,7 @@ static int tk_system_posix_wait (lua_State *L)
   int status;
   int pid1 = waitpid(pid0, &status, 0);
   if (pid1 == -1)
-    return tk_system_posix_err(L, errno);
+    return tk_lua_errno(L, errno);
   lua_pushinteger(L, pid1);
   if (WIFEXITED(status)) {
     lua_pushstring(L, "exited");
@@ -147,7 +170,7 @@ static int tk_system_posix_get_num_cores (lua_State *L)
 {
   long cores = sysconf(_SC_NPROCESSORS_ONLN);
   if (cores <= 0)
-    return tk_system_posix_err(L, errno);
+    return tk_lua_errno(L, errno);
   lua_pushinteger(L, cores);
   return 1;
 }
@@ -163,6 +186,7 @@ static luaL_Reg tk_system_posix_fns[] =
   { "read", tk_system_posix_read },
   { "wait", tk_system_posix_wait },
   { "setenv", tk_system_posix_setenv },
+  { "sleep", tk_system_posix_sleep },
   { NULL, NULL }
 };
 

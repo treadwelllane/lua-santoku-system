@@ -163,3 +163,7 @@ test("file not found", function ()
     return { t, ... }
   end, sys.pread({ "__not_a_program__", stderr = true })))))
 end)
+
+test("sleep", function ()
+  sys.sleep(250)
+end)
