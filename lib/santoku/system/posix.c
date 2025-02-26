@@ -132,7 +132,7 @@ static int tk_system_posix_fork (lua_State *L)
 static int tk_system_posix_sleep (lua_State *L)
 {
   unsigned time = tk_lua_checkunsigned(L, 1);
-  usleep(time * 1000); // us to ms
+  usleep(time * 1000000000); // us to ms
   return 0;
 }
 
