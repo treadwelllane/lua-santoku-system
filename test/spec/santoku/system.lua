@@ -165,5 +165,5 @@ test("file not found", function ()
 end)
 
 test("sleep", function ()
-  sys.sleep(250)
+  sys.sleep(.25)
 end)
