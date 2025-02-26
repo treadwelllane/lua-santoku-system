@@ -132,8 +132,9 @@ static int tk_system_posix_fork (lua_State *L)
 static int tk_system_posix_sleep (lua_State *L)
 {
   time_t time = luaL_checkinteger(L, 1);
-  useconds_t subsec = luaL_checknumber(L, 1) - time * 1000000000.0;
-  sleep(time);
+  useconds_t subsec = (luaL_checknumber(L, 1) - time) * 1000000.0;
+  if (time >= 1)
+    sleep(time);
   usleep(subsec);
   return 0;
 }
