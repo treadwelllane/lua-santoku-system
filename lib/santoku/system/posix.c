@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -134,6 +135,8 @@ static int tk_fork (lua_State *L)
   if (pid == -1)
     return tk_lua_errno(L, errno);
   lua_pushinteger(L, pid);
+  if (pid == 0)
+    prctl(PR_SET_PDEATHSIG, SIGTERM);
   return 1;
 }
 

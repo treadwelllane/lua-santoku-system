@@ -13,8 +13,6 @@ local dup2 = posix.dup2
 local close = posix.close
 local execp = posix.execp
 local wait = posix.wait
-local getpid = posix.pid
-local getppid = posix.ppid
 
 local flush = io.flush
 local stderr = io.stderr
@@ -59,7 +57,7 @@ local function run_child (opts, job, sr, sw, er, ew)
         exit(0)
       end
 
-    end, err.pcall(opts.fn, job, getpid(), getppid()))
+    end, err.pcall(opts.fn, job, opts))
 
   else
 
