@@ -1,6 +1,6 @@
 -- local sys = require("santoku.system")
 -- local str = require("santoku.string")
--- local atom = sys.atom()
+-- local atom = sys.atom(1, 1)
 
 -- local vals = {}
 -- for i = 1, 100 do
@@ -8,19 +8,20 @@
 -- end
 
 -- for data in sys.sh({
---   jobs = 16,
+--   jobs = 1,
 --   fn = function (job)
 --     while true do
 --       local a = atom()
---       sys.sleep(0.1)
+--       io.stderr:write("  A: " .. a .. "\n");
+--       io.stderr:flush()
 --       if a > #vals then
 --         break
 --       else
 --         print(job, a, vals[a])
+--         io.stdout:flush()
 --       end
 --     end
 --   end
 -- }) do
---   local n, a, v = str.match(data, "(%d+)\t(%d+)\t(%d+)")
---   print(">", n, a, v)
+--   print("  result", data)
 -- end

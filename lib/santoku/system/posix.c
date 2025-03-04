@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <semaphore.h>
+#include <stdbool.h>
 #include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -218,10 +219,18 @@ static int tk_pid (lua_State *L) {
 }
 
 typedef struct {
+  lua_Number value;
+  lua_Number last;
+} tk_atom_data_t;
+
+typedef struct {
   sem_t *sem;
+  pid_t owner;
+  lua_Number throttle;
+  lua_Number last;
   char *sem_path;
   char *shm_path;
-  lua_Number *value;
+  tk_atom_data_t *data;
 } tk_atom_t;
 
 static tk_atom_t *peek_atom (lua_State *L, int i)
@@ -232,9 +241,14 @@ static tk_atom_t *peek_atom (lua_State *L, int i)
 static int tk_atom_destroy (lua_State *L)
 {
   tk_atom_t *atomp = peek_atom(L, 1);
-  sem_close(atomp->sem);
-  sem_unlink(atomp->sem_path);
-  sem_unlink(atomp->shm_path);
+  if (getpid() == atomp->owner) {
+    if (sem_close(atomp->sem))
+      return tk_lua_errno(L, errno);
+    if (sem_unlink(atomp->sem_path))
+      return tk_lua_errno(L, errno);
+    if (sem_unlink(atomp->shm_path))
+      return tk_lua_errno(L, errno);
+  }
   free(atomp->sem_path);
   free(atomp->shm_path);
   return 0;
@@ -244,20 +258,54 @@ static int tk_atom_closure (lua_State *L)
 {
   lua_Number inc = luaL_optnumber(L, 1, 1);
   tk_atom_t *atomp = peek_atom(L, lua_upvalueindex(1));
+  lua_settop(L, 0);
 
-  sem_wait(atomp->sem);
-  lua_Number old = *atomp->value;
-  *atomp->value = old + inc;
-  sem_post(atomp->sem);
+  if (atomp->throttle > 0) {
 
-  lua_pushnumber(L, old);
+    sem_wait(atomp->sem);
+
+    lua_Number last = atomp->data->last;
+
+    lua_pushboolean(L, true);
+    tk_lua_callmod(L, 1, 1, "santoku.utc", "time");
+    lua_Number now = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+
+    lua_Number diff = now - last;
+    if (diff < atomp->throttle) {
+      lua_pushnumber(L, atomp->throttle - diff);
+      tk_lua_callmod(L, 1, 0, "santoku.system", "sleep");
+    }
+
+    lua_pushboolean(L, true);
+    tk_lua_callmod(L, 1, 1, "santoku.utc", "time");
+    now = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+
+    lua_Number old = atomp->data->value;
+    atomp->data->value = old + inc;
+    atomp->data->last = now;
+    sem_post(atomp->sem);
+    lua_pushnumber(L, old);
+
+  } else {
+
+    sem_wait(atomp->sem);
+    lua_Number old = atomp->data->value;
+    atomp->data->value = old + inc;
+    sem_post(atomp->sem);
+    lua_pushnumber(L, old);
+
+  }
+
   return 1;
 }
 
 static int tk_atom (lua_State *L)
 {
   lua_Number def = luaL_optnumber(L, 1, 1);
-  lua_settop(L, 1);
+  lua_Number throttle = luaL_optnumber(L, 2, -1);
+  lua_settop(L, 0);
 
   lua_pushinteger(L, 32);
   lua_pushinteger(L, 97);
@@ -272,22 +320,23 @@ static int tk_atom (lua_State *L)
   char shm_path[33];
   char sem_path[33];
 
-  sprintf(shm_path, "/%s", luaL_checkstring(L, 2));
-  sprintf(sem_path, "/%s", luaL_checkstring(L, 3));
+  sprintf(shm_path, "/%s", luaL_checkstring(L, 1));
+  sprintf(sem_path, "/%s", luaL_checkstring(L, 2));
 
   int shm_fd = shm_open(shm_path, O_CREAT | O_RDWR, 0666);
 
   if (shm_fd == -1)
     return tk_lua_errno(L, errno);
 
-  if (ftruncate(shm_fd, sizeof(int)) == -1)
+  if (ftruncate(shm_fd, sizeof(tk_atom_data_t)) == -1)
     return tk_lua_errno(L, errno);
 
-  lua_Number *value = mmap(NULL, sizeof(lua_Number), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
-  if (value == MAP_FAILED)
+  tk_atom_data_t *data = mmap(NULL, sizeof(tk_atom_data_t), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+  if (data == MAP_FAILED)
     return tk_lua_errno(L, errno);
 
-  *value = def;
+  data->value = def;
+  data->last = 0;
   close(shm_fd);
 
   sem_t* sem = sem_open(sem_path, O_CREAT, 0666, 1);
@@ -296,10 +345,12 @@ static int tk_atom (lua_State *L)
     return tk_lua_errno(L, errno);
 
   tk_atom_t *atomp = lua_newuserdata(L, sizeof(tk_atom_t));
+  atomp->owner = getpid();
   atomp->sem = sem;
-  atomp->value = value;
+  atomp->throttle = throttle;
   atomp->sem_path = strdup(sem_path);
   atomp->shm_path = strdup(shm_path);
+  atomp->data = data;
   luaL_getmetatable(L, MT_ATOM);
   lua_setmetatable(L, -2);
   lua_pushcclosure(L, tk_atom_closure, 1);
