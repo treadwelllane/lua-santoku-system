@@ -50,8 +50,17 @@ local function run_child (opts, job, sr, sw, er, ew)
 
   if opts.fn then
 
-    opts.fn(job, opts)
-    exit(0)
+    varg.tup(function (ok, ...)
+
+      if not ok then
+        stderr:write(cat({ "Error in exec for: ", opts.fn, ": ", cat({ ... }, ": "), "\n" }))
+        flush(stderr)
+        exit(1)
+      else
+        exit(0)
+      end
+
+    end, err.pcall(opts.fn, job, opts))
 
   else
 
