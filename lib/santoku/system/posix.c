@@ -16,6 +16,8 @@
 
 #define MT_ATOM "santoku_atom"
 
+static int tk_ppid (lua_State *);
+
 static inline void tk_lua_callmod (lua_State *L, int nargs, int nret, const char *smod, const char *sfn)
 {
   lua_getglobal(L, "require"); // arg req
@@ -36,6 +38,13 @@ static inline unsigned int tk_lua_checkunsigned (lua_State *L, int i)
   if (l > UINT_MAX)
     luaL_error(L, "value is too large");
   return (unsigned int) l;
+}
+
+static inline int tk_lua_error (lua_State *L, const char *err)
+{
+  lua_pushstring(L, err);
+  tk_lua_callmod(L, 1, 0, "santoku.error", "error");
+  return 0;
 }
 
 static inline int tk_lua_errno (lua_State *L, int err)
@@ -131,12 +140,23 @@ static int tk_execp (lua_State *L)
 
 static int tk_fork (lua_State *L)
 {
+  lua_settop(L, 0);
+  pid_t ppid = getpid();
   pid_t pid = fork();
   if (pid == -1)
     return tk_lua_errno(L, errno);
+  if (pid != 0) {
+    lua_pushinteger(L, pid);
+    return 1;
+  }
+  if (prctl(PR_SET_PDEATHSIG, SIGTERM))
+    return tk_lua_errno(L, errno);
+  tk_ppid(L);
+  pid_t ppid0 = (pid_t) luaL_checkinteger(L, -1);
+  lua_pop(L, 1);
+  if (ppid != ppid0)
+    return tk_lua_error(L, "parent exited before prctl");
   lua_pushinteger(L, pid);
-  if (pid == 0)
-    prctl(PR_SET_PDEATHSIG, SIGTERM);
   return 1;
 }
 
