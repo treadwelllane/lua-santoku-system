@@ -2,11 +2,17 @@
 #include "lauxlib.h"
 
 #include <errno.h>
+#include <fcntl.h>
+#include <semaphore.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include <unistd.h>
+
+#define MT_ATOM "santoku_atom"
 
 static inline void tk_lua_callmod (lua_State *L, int nargs, int nret, const char *smod, const char *sfn)
 {
@@ -45,7 +51,7 @@ static inline int tk_lua_errmalloc (lua_State *L)
   return 0;
 }
 
-static int tk_system_posix_close (lua_State *L)
+static int tk_close (lua_State *L)
 {
   int n = luaL_checkinteger(L, -1);
   int rc = close(n);
@@ -55,7 +61,7 @@ static int tk_system_posix_close (lua_State *L)
 }
 
 // TODO: Use luaL_Buffer / prepbuffer
-static int tk_system_posix_read (lua_State *L)
+static int tk_read (lua_State *L)
 {
   int fd = luaL_checkinteger(L, -2);
   int size = luaL_checkinteger(L, -1);
@@ -73,7 +79,7 @@ static int tk_system_posix_read (lua_State *L)
   return 1;
 }
 
-static int tk_system_posix_setenv (lua_State *L)
+static int tk_setenv (lua_State *L)
 {
   const char *k = luaL_checkstring(L, 1);
   const char *v = luaL_checkstring(L, 2);
@@ -82,7 +88,7 @@ static int tk_system_posix_setenv (lua_State *L)
   return 0;
 }
 
-static int tk_system_posix_dup2 (lua_State *L)
+static int tk_dup2 (lua_State *L)
 {
   int new = luaL_checkinteger(L, -1);
   int old = luaL_checkinteger(L, -2);
@@ -92,7 +98,7 @@ static int tk_system_posix_dup2 (lua_State *L)
   return 0;
 }
 
-static int tk_system_posix_pipe (lua_State *L)
+static int tk_pipe (lua_State *L)
 {
   int fds[2];
   int rc = pipe(fds);
@@ -103,7 +109,7 @@ static int tk_system_posix_pipe (lua_State *L)
   return 2;
 }
 
-static int tk_system_posix_execp (lua_State *L)
+static int tk_execp (lua_State *L)
 {
 	const char *path = luaL_checkstring(L, -2);
   luaL_checktype(L, -1, LUA_TTABLE);
@@ -121,7 +127,7 @@ static int tk_system_posix_execp (lua_State *L)
   return tk_lua_errno(L, errno);
 }
 
-static int tk_system_posix_fork (lua_State *L)
+static int tk_fork (lua_State *L)
 {
   pid_t pid = fork();
   if (pid == -1)
@@ -130,7 +136,7 @@ static int tk_system_posix_fork (lua_State *L)
   return 1;
 }
 
-static int tk_system_posix_sleep (lua_State *L)
+static int tk_sleep (lua_State *L)
 {
   time_t time = luaL_checkinteger(L, 1);
   useconds_t subsec = (luaL_checknumber(L, 1) - time) * 1000000.0;
@@ -140,7 +146,7 @@ static int tk_system_posix_sleep (lua_State *L)
   return 0;
 }
 
-static int tk_system_posix_wait (lua_State *L)
+static int tk_wait (lua_State *L)
 {
   int pid0 = luaL_checkinteger(L, -1);
   int status;
@@ -170,7 +176,7 @@ static int tk_system_posix_wait (lua_State *L)
   }
 }
 
-static int tk_system_posix_get_num_cores (lua_State *L)
+static int tk_get_num_cores (lua_State *L)
 {
   long cores = sysconf(_SC_NPROCESSORS_ONLN);
   if (cores <= 0)
@@ -180,7 +186,7 @@ static int tk_system_posix_get_num_cores (lua_State *L)
 }
 
 // TODO: only works on linux!
-static int tk_system_posix_pid (lua_State *L) {
+static int tk_pid (lua_State *L) {
   pid_t pid = getpid();
   lua_pushinteger(L, pid);
   int ppid;
@@ -211,27 +217,121 @@ static int tk_system_posix_pid (lua_State *L) {
   }
 }
 
-static luaL_Reg tk_system_posix_fns[] =
+typedef struct {
+  sem_t *sem;
+  char *sem_path;
+  char *shm_path;
+  lua_Number *value;
+} tk_atom_t;
+
+static tk_atom_t *peek_atom (lua_State *L, int i)
 {
-  { "get_num_cores", tk_system_posix_get_num_cores },
-  { "close", tk_system_posix_close },
-  { "dup2", tk_system_posix_dup2 },
-  { "execp", tk_system_posix_execp },
-  { "pipe", tk_system_posix_pipe },
-  { "fork", tk_system_posix_fork },
-  { "read", tk_system_posix_read },
-  { "wait", tk_system_posix_wait },
-  { "setenv", tk_system_posix_setenv },
-  { "sleep", tk_system_posix_sleep },
-  { "pid", tk_system_posix_pid },
+  return (tk_atom_t *) luaL_checkudata(L, i, MT_ATOM);
+}
+
+static int tk_atom_destroy (lua_State *L)
+{
+  tk_atom_t *atomp = peek_atom(L, 1);
+  sem_close(atomp->sem);
+  sem_unlink(atomp->sem_path);
+  sem_unlink(atomp->shm_path);
+  free(atomp->sem_path);
+  free(atomp->shm_path);
+  return 0;
+}
+
+static int tk_atom_closure (lua_State *L)
+{
+  lua_Number inc = luaL_optnumber(L, 1, 1);
+  tk_atom_t *atomp = peek_atom(L, lua_upvalueindex(1));
+
+  sem_wait(atomp->sem);
+  lua_Number old = *atomp->value;
+  *atomp->value = old + inc;
+  sem_post(atomp->sem);
+
+  lua_pushnumber(L, old);
+  return 1;
+}
+
+static int tk_atom (lua_State *L)
+{
+  lua_Number def = luaL_optnumber(L, 1, 1);
+  lua_settop(L, 1);
+
+  lua_pushinteger(L, 32);
+  lua_pushinteger(L, 97);
+  lua_pushinteger(L, 122);
+  tk_lua_callmod(L, 3, 1, "santoku.random", "str");
+
+  lua_pushinteger(L, 32);
+  lua_pushinteger(L, 97);
+  lua_pushinteger(L, 122);
+  tk_lua_callmod(L, 3, 1, "santoku.random", "str");
+
+  char shm_path[33];
+  char sem_path[33];
+
+  sprintf(shm_path, "/%s", luaL_checkstring(L, 2));
+  sprintf(sem_path, "/%s", luaL_checkstring(L, 3));
+
+  int shm_fd = shm_open(shm_path, O_CREAT | O_RDWR, 0666);
+
+  if (shm_fd == -1)
+    return tk_lua_errno(L, errno);
+
+  if (ftruncate(shm_fd, sizeof(int)) == -1)
+    return tk_lua_errno(L, errno);
+
+  lua_Number *value = mmap(NULL, sizeof(lua_Number), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+  if (value == MAP_FAILED)
+    return tk_lua_errno(L, errno);
+
+  *value = def;
+  close(shm_fd);
+
+  sem_t* sem = sem_open(sem_path, O_CREAT, 0666, 1);
+
+  if (sem == SEM_FAILED)
+    return tk_lua_errno(L, errno);
+
+  tk_atom_t *atomp = lua_newuserdata(L, sizeof(tk_atom_t));
+  atomp->sem = sem;
+  atomp->value = value;
+  atomp->sem_path = strdup(sem_path);
+  atomp->shm_path = strdup(shm_path);
+  luaL_getmetatable(L, MT_ATOM);
+  lua_setmetatable(L, -2);
+  lua_pushcclosure(L, tk_atom_closure, 1);
+  return 1;
+}
+
+static luaL_Reg tk_fns[] =
+{
+  { "get_num_cores", tk_get_num_cores },
+  { "close", tk_close },
+  { "dup2", tk_dup2 },
+  { "execp", tk_execp },
+  { "pipe", tk_pipe },
+  { "fork", tk_fork },
+  { "read", tk_read },
+  { "wait", tk_wait },
+  { "setenv", tk_setenv },
+  { "sleep", tk_sleep },
+  { "pid", tk_pid },
+  { "atom", tk_atom },
   { NULL, NULL }
 };
 
 int luaopen_santoku_system_posix (lua_State *L)
 {
   lua_newtable(L);
-  luaL_register(L, NULL, tk_system_posix_fns);
+  luaL_register(L, NULL, tk_fns);
   lua_pushinteger(L, BUFSIZ);
   lua_setfield(L, -2, "BUFSIZ");
+  luaL_newmetatable(L, MT_ATOM); // t mt
+  lua_pushcfunction(L, tk_atom_destroy); // t mt fn
+  lua_setfield(L, -2, "__gc"); // t mt
+  lua_pop(L, 1); // t
   return 1;
 }

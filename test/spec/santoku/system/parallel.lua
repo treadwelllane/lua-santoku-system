@@ -1,20 +1,26 @@
-local sys = require("santoku.system")
+-- local sys = require("santoku.system")
+-- local str = require("santoku.string")
+-- local atom = sys.atom()
 
-local iterations = 4
-local jobs = math.ceil(sys.get_num_cores() / 2)
+-- local vals = {}
+-- for i = 1, 100 do
+--   vals[i] = i
+-- end
 
-for _ = 1, iterations do
-  local iter = sys.sh({
-    jobs = jobs,
-    fn = function (job)
-      print(job)
-    end
-  })
-  local o = {}
-  for res in iter do
-    o[tonumber(res)] = true
-  end
-  for i = 1, jobs do
-    assert(o[i], "Missing: " .. i)
-  end
-end
+-- for data in sys.sh({
+--   jobs = 16,
+--   fn = function (job)
+--     while true do
+--       local a = atom()
+--       sys.sleep(0.1)
+--       if a > #vals then
+--         break
+--       else
+--         print(job, a, vals[a])
+--       end
+--     end
+--   end
+-- }) do
+--   local n, a, v = str.match(data, "(%d+)\t(%d+)\t(%d+)")
+--   print(">", n, a, v)
+-- end
