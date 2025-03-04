@@ -186,10 +186,16 @@ static int tk_get_num_cores (lua_State *L)
   return 1;
 }
 
-// TODO: only works on linux!
 static int tk_pid (lua_State *L) {
   pid_t pid = getpid();
   lua_pushinteger(L, pid);
+  return 1;
+}
+
+// TODO: only works on linux!
+static int tk_ppid (lua_State *L) {
+  lua_Integer n = luaL_optinteger(L, 1, -1);
+  pid_t pid = n < 0 ? getpid() : n;
   int ppid;
   char buf[BUFSIZ * 2];
   char procname[32];
@@ -199,7 +205,8 @@ static int tk_pid (lua_State *L) {
   if (fp != NULL) {
     size_t ret = fread(buf, sizeof(char), BUFSIZ * 2 - 1, fp);
     if (!ret) {
-      return 1;
+      // should error here?
+      return 0;
     } else {
       buf[ret++] = '\0';  // Terminate it.
     }
@@ -212,9 +219,10 @@ static int tk_pid (lua_State *L) {
       return 1;
     }
     lua_pushinteger(L, ppid);
-    return 2;
-  } else {
     return 1;
+  } else {
+    // should error here?
+    return 0;
   }
 }
 
@@ -370,6 +378,7 @@ static luaL_Reg tk_fns[] =
   { "setenv", tk_setenv },
   { "sleep", tk_sleep },
   { "pid", tk_pid },
+  { "ppid", tk_ppid },
   { "atom", tk_atom },
   { NULL, NULL }
 };
