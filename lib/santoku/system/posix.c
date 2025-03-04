@@ -236,7 +236,6 @@ typedef struct {
 
 typedef struct {
   sem_t *sem;
-  pid_t owner;
   lua_Number throttle;
   lua_Number last;
   char *sem_path;
@@ -252,14 +251,9 @@ static tk_atom_t *peek_atom (lua_State *L, int i)
 static int tk_atom_destroy (lua_State *L)
 {
   tk_atom_t *atomp = peek_atom(L, 1);
-  if (getpid() == atomp->owner) {
-    if (sem_close(atomp->sem))
-      return tk_lua_errno(L, errno);
-    if (sem_unlink(atomp->sem_path))
-      return tk_lua_errno(L, errno);
-    if (sem_unlink(atomp->shm_path))
-      return tk_lua_errno(L, errno);
-  }
+  sem_close(atomp->sem);
+  sem_unlink(atomp->sem_path);
+  sem_unlink(atomp->shm_path);
   free(atomp->sem_path);
   free(atomp->shm_path);
   return 0;
@@ -356,7 +350,6 @@ static int tk_atom (lua_State *L)
     return tk_lua_errno(L, errno);
 
   tk_atom_t *atomp = lua_newuserdata(L, sizeof(tk_atom_t));
-  atomp->owner = getpid();
   atomp->sem = sem;
   atomp->throttle = throttle;
   atomp->sem_path = strdup(sem_path);
