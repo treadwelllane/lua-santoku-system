@@ -1,12 +1,7 @@
 local err = require("santoku.error")
-local wrapnil = err.wrapnil
-
 local varg = require("santoku.varg")
-local tup = varg.tup
-
 local arr = require("santoku.array")
-local shift = arr.shift
-local cat = arr.concat
+local str = require("santoku.string")
 
 local posix = require("santoku.system.posix")
 local BUFSIZ = posix.BUFSIZ
@@ -18,12 +13,14 @@ local dup2 = posix.dup2
 local close = posix.close
 local execp = posix.execp
 local wait = posix.wait
+local getpid = posix.pid
+local getppid = posix.ppid
 
 local flush = io.flush
 local stderr = io.stderr
 local exit = os.exit
 
-local poll = wrapnil(require("santoku.system.posix.poll"))
+local poll = err.wrapnil(require("santoku.system.posix.poll"))
 
 local function run_child (opts, job, sr, sw, er, ew)
 
@@ -53,23 +50,28 @@ local function run_child (opts, job, sr, sw, er, ew)
     varg.tup(function (ok, ...)
 
       if not ok then
-        stderr:write(cat({ "Error in exec for: ", opts.fn, ": ", cat({ ... }, ": "), "\n" }))
+        stderr:write(str.format("Error in exec for %s: %s\n",
+          tostring(opts.fn),
+          arr.concat({ varg.map(tostring, ...) }, ": ")))
         flush(stderr)
         exit(1)
       else
         exit(0)
       end
 
-    end, err.pcall(opts.fn, job, opts))
+    end, err.pcall(opts.fn, job, getpid(), getppid()))
 
   else
 
     local prog = opts[1]
-    shift(opts)
+    arr.shift(opts)
 
-    tup(function (_, err, cd)
+    varg.tup(function (_, err, cd)
 
-      stderr:write(cat({ "Error in exec for: ", prog or "(nil)", ": ", err or "(nil)", ": ", cd or "(nil)", "\n" }))
+      stderr:write(str.format("Error in exec for: %s: %s: %s\n",
+        prog or "(nil)",
+        err or "(nil)",
+        cd or "(nil)"))
       flush(stderr)
       exit(1)
 

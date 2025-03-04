@@ -9,7 +9,7 @@
 
 -- for data in sys.sh({
 --   jobs = 1,
---   fn = function (job)
+--   fn = function (job, pid, ppid)
 --     while true do
 --       local a = atom()
 --       io.stderr:write("  A: " .. a .. "\n");
@@ -25,7 +25,3 @@
 -- }) do
 --   print("  result", data)
 -- end
-
-
--- local sys = require("santoku.system")
--- print(sys.pid(), sys.ppid())
