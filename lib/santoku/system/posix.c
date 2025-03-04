@@ -2,10 +2,11 @@
 #include "lauxlib.h"
 
 #include <errno.h>
-#include <sys/wait.h>
-#include <string.h>
-#include <unistd.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 static inline void tk_lua_callmod (lua_State *L, int nargs, int nret, const char *smod, const char *sfn)
 {
@@ -178,6 +179,38 @@ static int tk_system_posix_get_num_cores (lua_State *L)
   return 1;
 }
 
+// TODO: only works on linux!
+static int tk_system_posix_pid (lua_State *L) {
+  pid_t pid = getpid();
+  lua_pushinteger(L, pid);
+  int ppid;
+  char buf[BUFSIZ * 2];
+  char procname[32];
+  FILE *fp;
+  snprintf(procname, sizeof(procname), "/proc/%u/status", pid);
+  fp = fopen(procname, "r");
+  if (fp != NULL) {
+    size_t ret = fread(buf, sizeof(char), BUFSIZ * 2 - 1, fp);
+    if (!ret) {
+      return 1;
+    } else {
+      buf[ret++] = '\0';  // Terminate it.
+    }
+  }
+  fclose(fp);
+  char *ppid_loc = strstr(buf, "\nPPid:");
+  if (ppid_loc) {
+    int ret = sscanf(ppid_loc, "\nPPid:%d", &ppid);
+    if (!ret || ret == EOF) {
+      return 1;
+    }
+    lua_pushinteger(L, ppid);
+    return 2;
+  } else {
+    return 1;
+  }
+}
+
 static luaL_Reg tk_system_posix_fns[] =
 {
   { "get_num_cores", tk_system_posix_get_num_cores },
@@ -190,6 +223,7 @@ static luaL_Reg tk_system_posix_fns[] =
   { "wait", tk_system_posix_wait },
   { "setenv", tk_system_posix_setenv },
   { "sleep", tk_system_posix_sleep },
+  { "pid", tk_system_posix_pid },
   { NULL, NULL }
 };
 
