@@ -149,7 +149,7 @@ static int tk_fork (lua_State *L)
     lua_pushinteger(L, pid);
     return 1;
   }
-  if (prctl(PR_SET_PDEATHSIG, SIGTERM))
+  if (prctl(PR_SET_PDEATHSIG, SIGHUP))
     return tk_lua_errno(L, errno);
   tk_ppid(L);
   pid_t ppid0 = (pid_t) luaL_checkinteger(L, -1);
