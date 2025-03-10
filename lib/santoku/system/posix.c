@@ -15,6 +15,7 @@
 #include <unistd.h>
 
 #define MT_ATOM "santoku_atom"
+#define MT_MUTEX "santoku_mutex"
 
 static int tk_ppid (lua_State *);
 
@@ -381,6 +382,70 @@ static int tk_atom (lua_State *L)
   return 1;
 }
 
+typedef struct {
+  sem_t *sem;
+  char *sem_path;
+} tk_mutex_t;
+
+static tk_mutex_t *peek_mutex (lua_State *L, int i)
+{
+  return (tk_mutex_t *) luaL_checkudata(L, i, MT_MUTEX);
+}
+
+static int tk_mutex_destroy (lua_State *L)
+{
+  tk_mutex_t *mutexp = peek_mutex(L, 1);
+  sem_close(mutexp->sem);
+  sem_unlink(mutexp->sem_path);
+  free(mutexp->sem_path);
+  return 0;
+}
+
+static int tk_mutex_closure (lua_State *L)
+{
+  if (lua_gettop(L) == 0)
+    return 0;
+  tk_mutex_t *mutexp = peek_mutex(L, lua_upvalueindex(1));
+  // fn ...args
+  sem_wait(mutexp->sem);
+  tk_lua_callmod(L, lua_gettop(L), LUA_MULTRET, "santoku.error", "pcall"); // ok ...ret
+  sem_post(mutexp->sem);
+  tk_lua_callmod(L, lua_gettop(L), LUA_MULTRET, "santoku.error", "checkok"); // ...ret
+  return lua_gettop(L);
+}
+
+static int tk_mutex (lua_State *L)
+{
+  lua_settop(L, 0);
+
+  lua_pushinteger(L, 32);
+  lua_pushinteger(L, 97);
+  lua_pushinteger(L, 122);
+  tk_lua_callmod(L, 3, 1, "santoku.random", "str");
+
+  lua_pushinteger(L, 32);
+  lua_pushinteger(L, 97);
+  lua_pushinteger(L, 122);
+  tk_lua_callmod(L, 3, 1, "santoku.random", "str");
+
+  char sem_path[33];
+
+  sprintf(sem_path, "/%s", luaL_checkstring(L, 2));
+
+  sem_t* sem = sem_open(sem_path, O_CREAT, 0666, 1);
+
+  if (sem == SEM_FAILED)
+    return tk_lua_errno(L, errno);
+
+  tk_mutex_t *mutexp = lua_newuserdata(L, sizeof(tk_mutex_t)); // t
+  mutexp->sem = sem;
+  mutexp->sem_path = strdup(sem_path);
+  luaL_getmetatable(L, MT_MUTEX); // t mt
+  lua_setmetatable(L, -2); // t
+  lua_pushcclosure(L, tk_mutex_closure, 1); // fn
+  return 1;
+}
+
 static luaL_Reg tk_fns[] =
 {
   { "get_num_cores", tk_get_num_cores },
@@ -396,6 +461,7 @@ static luaL_Reg tk_fns[] =
   { "pid", tk_pid },
   { "ppid", tk_ppid },
   { "atom", tk_atom },
+  { "mutex", tk_mutex },
   { NULL, NULL }
 };
 
@@ -407,6 +473,10 @@ int luaopen_santoku_system_posix (lua_State *L)
   lua_setfield(L, -2, "BUFSIZ");
   luaL_newmetatable(L, MT_ATOM); // t mt
   lua_pushcfunction(L, tk_atom_destroy); // t mt fn
+  lua_setfield(L, -2, "__gc"); // t mt
+  lua_pop(L, 1); // t
+  luaL_newmetatable(L, MT_MUTEX); // t mt
+  lua_pushcfunction(L, tk_mutex_destroy); // t mt fn
   lua_setfield(L, -2, "__gc"); // t mt
   lua_pop(L, 1); // t
   return 1;
