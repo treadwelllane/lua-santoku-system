@@ -12,6 +12,10 @@ for data in sys.sh({
   jobs = 10,
   fn = function (job)
     while true do
+      print(mutex(function ()
+        return "mutex"
+      end))
+      local a = counter()
       if a > #vals then
         break
       else
