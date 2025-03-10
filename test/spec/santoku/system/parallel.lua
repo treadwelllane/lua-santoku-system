@@ -1,20 +1,15 @@
 local sys = require("santoku.system")
-local counter = sys.atom(1, 0.1)
+local counter = sys.atom(1)
 
 local vals = {}
-for i = 1, 100 do
+for i = 1, 10 do
   vals[i] = i
 end
-
-local mutex = sys.mutex()
 
 for data in sys.sh({
   jobs = 10,
   fn = function (job)
     while true do
-      print(mutex(function ()
-        return "mutex"
-      end))
       local a = counter()
       if a > #vals then
         break

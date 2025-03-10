@@ -273,8 +273,6 @@ static int tk_atom_destroy (lua_State *L)
 {
   tk_atom_t *atomp = peek_atom(L, 1);
   sem_close(atomp->sem);
-  sem_unlink(atomp->sem_path);
-  sem_unlink(atomp->shm_path);
   free(atomp->sem_path);
   free(atomp->shm_path);
   return 0;
@@ -354,6 +352,9 @@ static int tk_atom (lua_State *L)
   if (shm_fd == -1)
     return tk_lua_errno(L, errno);
 
+  if (shm_unlink(shm_path))
+    return tk_lua_errno(L, errno);
+
   if (ftruncate(shm_fd, sizeof(tk_atom_data_t)) == -1)
     return tk_lua_errno(L, errno);
 
@@ -368,6 +369,9 @@ static int tk_atom (lua_State *L)
   sem_t* sem = sem_open(sem_path, O_CREAT, 0666, 1);
 
   if (sem == SEM_FAILED)
+    return tk_lua_errno(L, errno);
+
+  if (sem_unlink(sem_path))
     return tk_lua_errno(L, errno);
 
   tk_atom_t *atomp = lua_newuserdata(L, sizeof(tk_atom_t));
@@ -396,7 +400,6 @@ static int tk_mutex_destroy (lua_State *L)
 {
   tk_mutex_t *mutexp = peek_mutex(L, 1);
   sem_close(mutexp->sem);
-  sem_unlink(mutexp->sem_path);
   free(mutexp->sem_path);
   return 0;
 }
@@ -431,6 +434,9 @@ static int tk_mutex (lua_State *L)
   sem_t* sem = sem_open(sem_path, O_CREAT, 0666, 1);
 
   if (sem == SEM_FAILED)
+    return tk_lua_errno(L, errno);
+
+  if (sem_unlink(sem_path))
     return tk_lua_errno(L, errno);
 
   tk_mutex_t *mutexp = lua_newuserdata(L, sizeof(tk_mutex_t)); // t
