@@ -259,8 +259,6 @@ typedef struct {
   sem_t *sem;
   lua_Number throttle;
   lua_Number last;
-  char *sem_path;
-  char *shm_path;
   tk_atom_data_t *data;
 } tk_atom_t;
 
@@ -273,8 +271,7 @@ static int tk_atom_destroy (lua_State *L)
 {
   tk_atom_t *atomp = peek_atom(L, 1);
   sem_close(atomp->sem);
-  free(atomp->sem_path);
-  free(atomp->shm_path);
+  munmap(atomp->data, sizeof(tk_atom_data_t));
   return 0;
 }
 
@@ -377,8 +374,6 @@ static int tk_atom (lua_State *L)
   tk_atom_t *atomp = lua_newuserdata(L, sizeof(tk_atom_t));
   atomp->sem = sem;
   atomp->throttle = throttle;
-  atomp->sem_path = strdup(sem_path);
-  atomp->shm_path = strdup(shm_path);
   atomp->data = data;
   luaL_getmetatable(L, MT_ATOM);
   lua_setmetatable(L, -2);
@@ -400,7 +395,6 @@ static int tk_mutex_destroy (lua_State *L)
 {
   tk_mutex_t *mutexp = peek_mutex(L, 1);
   sem_close(mutexp->sem);
-  free(mutexp->sem_path);
   return 0;
 }
 
@@ -441,7 +435,6 @@ static int tk_mutex (lua_State *L)
 
   tk_mutex_t *mutexp = lua_newuserdata(L, sizeof(tk_mutex_t)); // t
   mutexp->sem = sem;
-  mutexp->sem_path = strdup(sem_path);
   luaL_getmetatable(L, MT_MUTEX); // t mt
   lua_setmetatable(L, -2); // t
   lua_pushcclosure(L, tk_mutex_closure, 1); // fn
