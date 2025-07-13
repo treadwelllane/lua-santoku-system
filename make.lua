@@ -1,7 +1,7 @@
 local env = {
 
   name = "santoku-system",
-  version = "0.0.55-1",
+  version = "0.0.56-1",
   variable_prefix = "TK_SYSTEM",
   license = "MIT",
   public = true,
@@ -11,7 +11,7 @@ local env = {
 
   dependencies = {
     "lua >= 5.1",
-    "santoku >= 0.0.272-1",
+    "santoku >= 0.0.278-1",
   },
 
   test = {

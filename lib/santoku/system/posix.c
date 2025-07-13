@@ -15,9 +15,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define MT_ATOM "santoku_atom"
-#define MT_MUTEX "santoku_mutex"
-
 static int tk_ppid (lua_State *);
 
 static inline void tk_lua_callmod (lua_State *L, int nargs, int nret, const char *smod, const char *sfn)
@@ -251,6 +248,11 @@ static int tk_ppid (lua_State *L) {
   }
 }
 
+#ifndef __ANDROID__
+
+#define MT_MUTEX "santoku_mutex"
+#define MT_ATOM "santoku_atom"
+
 typedef struct {
   lua_Number value;
   lua_Number last;
@@ -322,8 +324,6 @@ static int tk_atom_closure (lua_State *L)
 
   return 1;
 }
-
-#ifndef __ANDROID__
 
 static int tk_atom (lua_State *L)
 {
