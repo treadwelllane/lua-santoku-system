@@ -323,6 +323,8 @@ static int tk_atom_closure (lua_State *L)
   return 1;
 }
 
+#ifndef __ANDROID__
+
 static int tk_atom (lua_State *L)
 {
   lua_Number def = luaL_optnumber(L, 1, 1);
@@ -442,6 +444,8 @@ static int tk_mutex (lua_State *L)
   return 1;
 }
 
+#endif
+
 static luaL_Reg tk_fns[] =
 {
   { "get_num_cores", tk_get_num_cores },
@@ -456,8 +460,11 @@ static luaL_Reg tk_fns[] =
   { "sleep", tk_sleep },
   { "pid", tk_pid },
   { "ppid", tk_ppid },
+#ifndef __ANDROID__
   { "atom", tk_atom },
   { "mutex", tk_mutex },
+#endif
+
   { NULL, NULL }
 };
 
