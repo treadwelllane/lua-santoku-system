@@ -1,6 +1,4 @@
-#include "lua.h"
-#include "lauxlib.h"
-
+#include <santoku/lua/utils.h>
 #include <errno.h>
 #include <limits.h>
 #include <fcntl.h>
@@ -16,50 +14,6 @@
 #include <unistd.h>
 
 static int tk_ppid (lua_State *);
-
-static inline void tk_lua_callmod (lua_State *L, int nargs, int nret, const char *smod, const char *sfn)
-{
-  lua_getglobal(L, "require"); // arg req
-  lua_pushstring(L, smod); // arg req smod
-  lua_call(L, 1, 1); // arg mod
-  lua_pushstring(L, sfn); // args mod sfn
-  lua_gettable(L, -2); // args mod fn
-  lua_remove(L, -2); // args fn
-  lua_insert(L, - nargs - 1); // fn args
-  lua_call(L, nargs, nret); // results
-}
-
-static inline unsigned int tk_lua_checkunsigned (lua_State *L, int i)
-{
-  lua_Integer l = luaL_checkinteger(L, i);
-  if (l < 0)
-    luaL_error(L, "value can't be negative");
-  if (l > UINT_MAX)
-    luaL_error(L, "value is too large");
-  return (unsigned int) l;
-}
-
-static inline int tk_lua_error (lua_State *L, const char *err)
-{
-  lua_pushstring(L, err);
-  tk_lua_callmod(L, 1, 0, "santoku.error", "error");
-  return 0;
-}
-
-static inline int tk_lua_errno (lua_State *L, int err)
-{
-  lua_pushstring(L, strerror(errno));
-  lua_pushinteger(L, err);
-  tk_lua_callmod(L, 2, 0, "santoku.error", "error");
-  return 0;
-}
-
-static inline int tk_lua_errmalloc (lua_State *L)
-{
-  lua_pushstring(L, "Error in malloc");
-  tk_lua_callmod(L, 1, 0, "santoku.error", "error");
-  return 0;
-}
 
 static int tk_close (lua_State *L)
 {

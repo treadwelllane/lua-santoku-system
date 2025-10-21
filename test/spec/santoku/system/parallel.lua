@@ -1,4 +1,7 @@
 local sys = require("santoku.system")
+if not sys.atom then
+  return
+end
 local counter = sys.atom(1)
 
 local vals = {}
