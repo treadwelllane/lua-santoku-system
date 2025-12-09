@@ -1,5 +1,4 @@
 local err = require("santoku.error")
-local varg = require("santoku.varg")
 local arr = require("santoku.array")
 local str = require("santoku.string")
 
@@ -45,35 +44,35 @@ local function run_child (opts, job, sr, sw, er, ew)
 
   if opts.fn then
 
-    varg.tup(function (ok, ...)
+    (function (ok, ...)
 
       if not ok then
         stderr:write(str.format("Error in exec for %s: %s\n",
           tostring(opts.fn),
-          arr.concat({ varg.map(tostring, ...) }, ": ")))
+          arr.concat(arr.map(arr.pack(...), tostring), ": ")))
         flush(stderr)
         exit(1)
       else
         exit(0)
       end
 
-    end, err.pcall(opts.fn, job, opts))
+    end)(err.pcall(opts.fn, job, opts))
 
   else
 
     local prog = opts[1]
     arr.shift(opts)
 
-    varg.tup(function (_, err, cd)
+    ;(function (_, e, cd)
 
       stderr:write(str.format("Error in exec for: %s: %s: %s\n",
         prog or "(nil)",
-        err or "(nil)",
+        e or "(nil)",
         cd or "(nil)"))
       flush(stderr)
       exit(1)
 
-    end, err.pcall(execp, prog, opts))
+    end)(err.pcall(execp, prog, opts))
 
   end
 

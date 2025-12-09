@@ -1,7 +1,6 @@
 local pread = require("santoku.system.pread")
 
 local err = require("santoku.error")
-local varg = require("santoku.varg")
 local arr = require("santoku.array")
 local str = require("santoku.string")
 
@@ -68,7 +67,7 @@ return function (opts)
 
     end
 
-    return varg.tup(function (ev, pid, ...)
+    return (function (ev, pid, ...)
 
       if ev == nil then
         done = true
@@ -103,7 +102,7 @@ return function (opts)
         return err.error("unexpected event from pread", ev, ...)
       end
 
-    end, iter())
+    end)(iter())
 
   end
 

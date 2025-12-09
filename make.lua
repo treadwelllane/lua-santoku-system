@@ -1,6 +1,6 @@
 local env = {
   name = "santoku-system",
-  version = "0.0.58-1",
+  version = "0.0.59-1",
   variable_prefix = "TK_SYSTEM",
   license = "MIT",
   public = true,
@@ -8,7 +8,7 @@ local env = {
   ldflags = { "-pthread", "-lrt" },
   dependencies = {
     "lua >= 5.1",
-    "santoku >= 0.0.303-1",
+    "santoku >= 0.0.308-1",
   },
 }
 

@@ -1,5 +1,4 @@
-local iter = require("santoku.iter")
-local each = iter.each
+local arr = require("santoku.array")
 
 local tbl = require("santoku.table")
 local merge = tbl.merge
@@ -10,7 +9,7 @@ local sh = require("santoku.system.sh")
 
 local function execute (opts)
   opts.execute = true
-  return each(print, sh(opts))
+  return arr.pulleach(sh(opts), print)
 end
 
 return merge({
