@@ -8,7 +8,7 @@ local tbl = require("santoku.table")
 local teq = tbl.equals
 
 local arr = require("santoku.array")
-local apullmap = arr.pullmap
+local imap = arr.imap
 local apack = arr.pack
 
 local sys = require("santoku.system")
@@ -27,9 +27,9 @@ test("pread", function ()
       { "stdout", "a\n" },
       { "stderr", "b\n" },
       { "exit", "exited", 1 },
-    }, apullmap(it, function (t, _, ...)
+    }, imap(function (t, _, ...)
       return { t, ... }
-    end)))
+    end, it)))
 
   end)
 
@@ -44,7 +44,7 @@ test("sh", function ()
     assert(teq({
       { "a" },
       { "b" },
-    }, apullmap(it, apack)))
+    }, imap(apack, it)))
 
   end)
 
@@ -55,7 +55,7 @@ test("sh", function ()
     assert(teq({
       { "the quick brown fox" },
       { "jumped over the lazy dog" },
-    }, apullmap(it, apack)))
+    }, imap(apack, it)))
 
   end)
 
@@ -66,9 +66,9 @@ test("sh", function ()
       "sh", "-c", "echo $JOB"
     })
 
-    local r = arr.sort(apullmap(it, function (t, _, ...)
+    local r = arr.sort(imap(function (t, _, ...)
       return { t, ... }
-    end), function (a, b)
+    end, it), function (a, b)
       return a[2] < b[2]
     end)
 
@@ -92,7 +92,7 @@ test("sh", function ()
       "sh", "-c", "echo 1"
     })
 
-    local r = arr.sort(apullmap(it, apack), function (a, b)
+    local r = arr.sort(imap(apack, it), function (a, b)
       return a[1] > b[1]
     end)
 
@@ -113,7 +113,7 @@ test("sh", function ()
       end
     })
 
-    local r = arr.sort(apullmap(it, apack), function (a, b)
+    local r = arr.sort(imap(apack, it), function (a, b)
       return a[1] < b[1]
     end)
 
@@ -138,9 +138,9 @@ test("should setenv", function ()
   assert(teq({
     { "stdout", "Hello, World!\n" },
     { "exit", "exited", 0 },
-  }, apullmap(it, function (t, _, ...)
+  }, imap(function (t, _, ...)
     return { t, ... }
-  end)))
+  end, it)))
 
 end)
 
@@ -155,9 +155,9 @@ test("file not found", function ()
       "exited",
       1
     }
-  }, apullmap(sys.pread({ "__not_a_program__", stderr = true }), function (t, _, ...)
+  }, imap(function (t, _, ...)
     return { t, ... }
-  end)))
+  end, sys.pread({ "__not_a_program__", stderr = true }))))
 end)
 
 test("sleep", function ()

@@ -9,7 +9,7 @@ local sh = require("santoku.system.sh")
 
 local function execute (opts)
   opts.execute = true
-  return arr.pulleach(sh(opts), print)
+  return arr.ieach(print, sh(opts))
 end
 
 return merge({
