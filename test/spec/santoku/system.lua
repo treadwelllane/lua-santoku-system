@@ -9,6 +9,7 @@ local teq = tbl.equals
 
 local arr = require("santoku.array")
 local apullmap = arr.pullmap
+local apack = arr.pack
 
 local sys = require("santoku.system")
 
@@ -43,7 +44,7 @@ test("sh", function ()
     assert(teq({
       { "a" },
       { "b" },
-    }, apullmap(it, function (...) return {...} end)))
+    }, apullmap(it, apack)))
 
   end)
 
@@ -54,7 +55,7 @@ test("sh", function ()
     assert(teq({
       { "the quick brown fox" },
       { "jumped over the lazy dog" },
-    }, apullmap(it, function (...) return {...} end)))
+    }, apullmap(it, apack)))
 
   end)
 
@@ -91,7 +92,7 @@ test("sh", function ()
       "sh", "-c", "echo 1"
     })
 
-    local r = arr.sort(apullmap(it, function (...) return {...} end), function (a, b)
+    local r = arr.sort(apullmap(it, apack), function (a, b)
       return a[1] > b[1]
     end)
 
@@ -112,7 +113,7 @@ test("sh", function ()
       end
     })
 
-    local r = arr.sort(apullmap(it, function (...) return {...} end), function (a, b)
+    local r = arr.sort(apullmap(it, apack), function (a, b)
       return a[1] < b[1]
     end)
 
